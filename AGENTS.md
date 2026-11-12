@@ -62,8 +62,8 @@ getObj().data().action()
 	world.js — owns world model, body table, orbit motion. edit for bodies, orbit elements, speeds.
 	projection.js — owns map/wrap projection and log scale. edit for projection math, dmax smoothing.
 	render.js — owns canvas drawing. edit for colors, icon sizes, line style.
-	transition.js — owns selection morph. edit for duration, easing, ground band.
-	input.js — owns pointer hit test and selection. edit for hit radius.
+	transition.js — owns selection morph, scrub and line position. edit for duration, easing, settle speed.
+	input.js — owns pointer hit test, selection and drag-to-wrap scrub. edit for hit radius, drag slop.
 - new code goes to its owner, never appended "because the file is already there". no owner exists -> new file + header + map entry.
 - file > ~500 lines = defect. split by feature within the same plan.
 - moves are pure moves: contiguous ranges, snap to enclosing declarations, no behavior change.
@@ -134,6 +134,7 @@ getObj().data().action()
 ## current workstream
 
 plan 0.1 wrap projection: node math + stub-canvas smoke pass. only the browser manual pass list (look/feel) is left. no un-wrap in this version.
+plan 0.3 drag to wrap: node math + stub-canvas smoke pass. only the browser manual pass list (look/feel) is left.
 
 ## housekeeping
 

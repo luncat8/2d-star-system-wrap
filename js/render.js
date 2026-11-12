@@ -153,6 +153,14 @@ function drawIcon(b) {
 function drawFlatten(b, r0) {
 	const ry = r0 * (1 - trans.eased);
 	if (ry < 0.4) return;
+	if (b.cls === 'star') {
+		ctx.globalAlpha = 1 - trans.eased;
+		ctx.fillStyle = b.glowColor;
+		ctx.beginPath();
+		ctx.arc(b.sx, b.sy, b.sr * 2.4, 0, Math.PI * 2);
+		ctx.fill();
+		ctx.globalAlpha = 1;
+	}
 	ctx.fillStyle = b.color;
 	ctx.beginPath();
 	ctx.ellipse(b.sx, b.sy, r0, ry, 0, 0, Math.PI * 2);
@@ -178,6 +186,7 @@ function drawRise(b) {
 
 function drawWrapLine() {
 	if (!trans.active && view.selected < 0) return;
+	if (trans.drag && trans.eased <= 0 && trans.from < 0) return;
 	ctx.strokeStyle = 'rgba(255,255,255,0.14)';
 	ctx.lineWidth = 1;
 	lineAt(trans.line);

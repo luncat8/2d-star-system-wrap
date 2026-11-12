@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// owns: headless smoke for plan 0.1 (projection math + stub-canvas boot)
+// owns: headless smoke for projection and drag-to-wrap scrub (math + stub-canvas boot)
 // edit for: smoke assertions
 
 const fs = require('fs');
@@ -149,6 +149,85 @@ while (trans.active) {
 let maxCum = 0;
 for (let i = 0; i < cum.length; i++) if (cum[i] > maxCum) maxCum = cum[i];
 ok(maxCum <= W / 2 + 1, 'wrap->wrap X takes the short arc');
+
+view.selected = -1;
+trans.active = false;
+trans.from = -1;
+trans.to = -1;
+trans.drag = false;
+trans.settle = false;
+ok(startScrub(1) === true, 'scrub starts on a body');
+ok(trans.active && trans.drag && trans.from === -1 && trans.to === 1, 'scrub from map to planet');
+ok(view.selected === -1, 'scrub start keeps the current selection');
+scrubTo(0.5);
+updateTransition(0.2);
+near(trans.t, 0.5, 1e-9, 'drag holds the scrub progress');
+near(trans.eased, 0.5, 1e-9, 'drag drives eased directly');
+near(trans.line, H + (H * 0.9 - H) * 0.5, 1e-6, 'scrub line follows the progress');
+settleTransition(1);
+guard = 0;
+while (trans.active && guard++ < 1000) {
+	updateTransition(1 / 60);
+	updateProjection(1 / 60);
+}
+ok(!trans.active && view.selected === 1, 'scrub past halfway settles into wrap');
+near(trans.eased, 1, 1e-6, 'scrub settle reaches full wrap');
+near(trans.line, H * 0.9, 1e-6, 'scrub settle final line');
+
+view.selected = -1;
+trans.active = false;
+trans.from = -1;
+trans.to = -1;
+trans.drag = false;
+trans.settle = false;
+startScrub(1);
+scrubTo(0.4);
+settleTransition(0);
+guard = 0;
+while (trans.active && guard++ < 1000) {
+	updateTransition(1 / 60);
+	updateProjection(1 / 60);
+}
+ok(!trans.active && view.selected === -1, 'scrub below halfway returns to the map');
+near(trans.eased, 0, 1e-6, 'scrub cancel reaches the map state');
+
+view.selected = -1;
+trans.active = false;
+trans.from = -1;
+trans.to = -1;
+trans.drag = false;
+trans.settle = false;
+startScrub(1);
+continueAsClick();
+ok(trans.active && !trans.drag && view.selected === 1, 'no-drag release continues as a click');
+ok(trans.t === 0 && trans.eased === 0, 'click continuation starts from the map');
+guard = 0;
+while (trans.active && guard++ < 1000) {
+	updateTransition(1 / 60);
+	updateProjection(1 / 60);
+}
+ok(!trans.active && view.selected === 1, 'click continuation completes');
+
+view.selected = 1;
+trans.active = false;
+trans.from = -1;
+trans.to = -1;
+trans.drag = false;
+trans.settle = false;
+updateTransition(0);
+updateProjection(0.016);
+ok(startScrub(0) === true, 'scrub starts from wrap');
+ok(trans.from === 1 && trans.to === 0 && view.selected === 1, 'wrap scrub keeps the current selection');
+scrubTo(0.25);
+updateTransition(0.016);
+near(trans.eased, 0.25, 1e-9, 'wrap scrub drives eased directly');
+settleTransition(0);
+guard = 0;
+while (trans.active && guard++ < 1000) {
+	updateTransition(1 / 60);
+	updateProjection(1 / 60);
+}
+ok(!trans.active && view.selected === 1, 'wrap scrub cancel keeps the original body');
 console.log('projection smoke pass');
 `;
 	vm.runInNewContext(test, { console, Math, Float32Array, isFinite, Infinity, NaN });
@@ -156,7 +235,7 @@ console.log('projection smoke pass');
 
 function domSmoke() {
 	const order = ['js/world.js', 'js/projection.js', 'js/render.js', 'js/transition.js', 'js/input.js', 'js/main.js'];
-	const src = order.map(read).join('\n') + '\n globalThis.__state = { world, trans, view };';
+	const src = order.map(read).join('\n') + '\n globalThis.__state = { world, trans, view, proj };';
 	let rafCb = null;
 	const calls = {};
 	const ellipses = [];
@@ -201,17 +280,60 @@ function domSmoke() {
 	ok(calls.fillRect > 0 && calls.arc > 0, 'draw calls issued');
 
 	const target = S.world.bodies[1];
-	const click = (x, y) => { for (const fn of listeners.pointerdown || []) fn({ clientX: x, clientY: y }); };
-	click(target.sx, target.sy);
-	ok(S.trans.active && S.trans.to === 1, 'click starts transition');
+	const fire = (type, x, y) => { for (const fn of listeners[type] || []) fn({ clientX: x, clientY: y }); };
+	const down = (x, y) => fire('pointerdown', x, y);
+	const move = (x, y) => fire('pointermove', x, y);
+	const up = (x, y) => fire('pointerup', x, y);
+	const click = (x, y) => { down(x, y); up(x, y); };
+	const run = () => { for (let i = 0; i < 200 && S.trans.active; i++) frame(t += 16); };
+
+	down(50, 50);
+	move(150, 150);
+	up(150, 150);
+	ok(!S.trans.active, 'drag on empty space does nothing');
+
+	down(target.sx, target.sy);
+	move(target.sx + 1, target.sy + 1);
+	move(target.sx, target.sy + 50);
+	ok(S.trans.active && S.trans.drag, 'drag starts a scrub');
+	ok(S.trans.eased > 0 && S.trans.eased < 0.5, 'short drag scrubs below halfway');
+	ok(S.view.selected === -1, 'scrub does not select before release');
+	up(target.sx, target.sy + 50);
+	ok(!S.trans.drag && S.trans.settle, 'short drag settles back');
+	frame(t += 16);
+	run();
+	ok(!S.trans.active && S.view.selected === -1, 'short drag returns to the map');
+	ok(Math.abs(S.trans.eased) < 1e-6, 'scrub cancel reaches the map state');
+
+	const yTo = target.sy + (S.view.H - target.sy) * 0.7;
+	down(target.sx, target.sy);
+	move(target.sx + 1, target.sy + 1);
+	move(target.sx, yTo);
+	ok(S.trans.active && S.trans.drag, 'long drag starts a scrub');
+	ok(S.trans.eased > 0.5, 'long drag scrubs past halfway');
+	up(target.sx, yTo);
+	ok(!S.trans.drag && S.trans.settle, 'long drag settles forward');
+	run();
+	ok(!S.trans.active && S.view.selected === 1, 'long drag settles into wrap');
+	ok(S.trans.groundTop === 800 * 0.9 && S.trans.groundBot === 800, 'ground at bottom');
+	ok(!S.trans.drag && !S.trans.settle, 'scrub state clears');
+
 	click(S.world.bodies[2].sx, S.world.bodies[2].sy);
-	ok(S.trans.to === 1, 'click during transition ignored');
-	for (let i = 0; i < 200 && S.trans.active; i++) frame(t += 16);
-	ok(!S.trans.active && S.view.selected === 1, 'transition completes');
+	ok(S.trans.active && S.trans.to === 2 && !S.trans.drag, 'click starts transition');
+	click(S.world.bodies[0].sx, S.world.bodies[0].sy);
+	ok(S.trans.to === 2, 'click during transition ignored');
+	run();
+	ok(!S.trans.active && S.view.selected === 2, 'transition completes');
 	ok(S.trans.groundTop === 800 * 0.9 && S.trans.groundBot === 800, 'ground at bottom');
 
 	click(S.world.bodies[0].sx, S.world.bodies[0].sy);
-	for (let i = 0; i < 200 && S.trans.active; i++) frame(t += 16);
+	ok(S.trans.active && S.trans.to === 0, 're-center to star starts');
+	const toBefore = S.trans.to;
+	down(100, 100);
+	move(200, 200);
+	up(200, 200);
+	ok(S.trans.to === toBefore && !S.trans.drag, 'drag during transition ignored');
+	run();
 	ok(S.view.selected === 0 && S.trans.groundTop === 0, 're-center to star');
 
 	click(S.world.bodies[1].sx, S.world.bodies[1].sy);
@@ -227,6 +349,16 @@ function domSmoke() {
 		}
 	}
 	ok(rose, 'outgoing body rises during wrap->wrap');
+
+	const star = S.world.bodies[0];
+	down(star.sx, star.sy);
+	move(star.sx + 1, star.sy + 1);
+	move(star.sx, star.sy * 0.3);
+	ok(S.trans.active && S.trans.drag && S.trans.from === 1 && S.trans.to === 0, 'wrap drag starts a scrub');
+	ok(S.trans.eased > 0.5, 'wrap drag scrubs past halfway');
+	up(star.sx, star.sy * 0.3);
+	run();
+	ok(!S.trans.active && S.view.selected === 0, 'wrap drag settles onto the star');
 
 	sandbox.window.innerWidth = 900;
 	sandbox.window.innerHeight = 600;
