@@ -36,3 +36,41 @@
   < 0.25 screen; skip samples flagged singular or invisible (garbage x by design).
 - ascii-dump projected positions (grid of chars, 3 copies + relift like the renderer): catches
   draw-transform and coverage bugs the numeric checks can't see. cheap, no browser needed.
+
+## seam coverage vs polyline breaking
+
+- breaking a polyline where screen x jumps (|dx| > 0.25W) hides the seam for curves and does
+  nothing for the bodies: a single-copy azimuth map makes an icon teleport a full W at the seam
+  (measured 0.9997W with 10 bodies). the same break leaves a visible gap in any orbit that
+  crosses the seam mid-screen.
+- draw x−W, x, x+W and relift instead: the seam becomes an exact-W translate, and the same copies
+  let the flat state draw only its central copy. keep polyline breaking for samples that are
+  singular by design (pole crossings), where the gap sits behind the soil.
+- the shortest arc must be chosen once per element at transition start, not per frame from the
+  current x: per-frame choice flips when the two states are near antipodal and the sides exchange
+  mid-morph (measured 0.3853W per frame at t=0.46 on all ordered pair sweep).
+- copies cost 3x draw calls on sampled curves only; measure before optimizing it away
+  (2.7 ms/frame in the vm harness: 12 bodies, 128-sample orbits, 256-sample silhouettes).
+
+## high-dpi
+
+- clamp devicePixelRatio to 2 for the backing store. fill scales with dpr^2 and the scene draws
+  three copies of every sampled curve; a 3x screen is 2.25x the fill of a 2x one for no visible
+  gain at 1 px orbits and 2 px stars.
+
+## drag to wrap (design, not implemented)
+
+- a drag on a body should scrub the same morph a click animates, not pan a camera: progress =
+  distance moved toward the target's ground edge (planet down, star/moon up) over the distance
+  from the press to that edge. the wrap projection is its own zoom; no camera offset, no zoom.
+- while dragging, drive the morph parameter linearly from the pointer and ease only the release
+  settle (p > 0.5 settles in, else back) — an eased scrub lags the finger and jumps when the
+  settle starts.
+- start the scrub on pointerdown and treat no movement beyond a few px as a click, so the tap path
+  is unchanged.
+- a scrubbed morph needs the parameter drivable from outside the timer and a clean return to t=0:
+  reverting must restore the source state with no transition object left alive, or the next click
+  starts from a frozen blend.
+- press-time pops (target invisible at t=0, a wrap line with no source, glow mismatch) belong to a
+  dual from/to scene. a silhouette-collapse morph has none of them: at t=0 the target is already
+  its icon circle, so there is nothing to special-case.
