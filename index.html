@@ -3,11 +3,25 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title></title>
+<title>2d star system wrap</title>
+<style>
+	html, body { margin: 0; height: 100%; background: #05060a; overflow: hidden; }
+	#c { display: block; }
+	#hud {
+		position: fixed; top: 10px; left: 12px; z-index: 1;
+		color: #cfd6e6; font: 13px system-ui, sans-serif; user-select: none;
+	}
+</style>
 </head>
 <body>
 <div id="app">
-  <canvas id="c"></canvas>
+	<canvas id="c"></canvas>
+	<label id="hud"><input type="checkbox" id="wrapBox"> wrap surface to line</label>
 </div>
+<script src="system.js"></script>
+<script src="projection.js"></script>
+<script src="render.js"></script>
+<script src="input.js"></script>
+<script src="main.js"></script>
 </body>
 </html>
