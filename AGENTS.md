@@ -138,7 +138,8 @@ getObj().data().action()
 
 plan 0.1 (wrap projection) and 0.2 (star field, hint, dpr cap) implemented; archive/0.1.0-*, archive/0.2.0-*.
 manual browser pass pending: morph feel, seam invisibility, checkbox retarget, star density.
-next: plan drag = scrubbed morph (design + pitfalls in findings; not a camera pan), then body spin (surface x drift), sphere-of-influence shading.
+next, in order: plan-0.3.0-camera-pan.md (drag anywhere = pan, tap = wrap), plan-0.4.0-surface-unfold.md (the surface enters and leaves through the screen edge; drops the icon->line lerp that draws a soil slab).
+after that: body spin (surface x drift), sphere-of-influence shading.
 smoke after any projection/render change; ascii-dump check when draw transforms change (see findings).
 
 ## housekeeping
