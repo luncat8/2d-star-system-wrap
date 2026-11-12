@@ -1,0 +1,33 @@
+2d solar system.
+
+click to fly to center map on body and wrap accordingly new center
+
+while zoom to body make seamless transform to wrap state with body surface flat on top or bottom side of the screen. 2d wrap projection to flat body surface: in this projection sun and moon move at some altitude above current selected planet surface on a straight line in case of circular orbit in non wrap 2d space.
+surface of planet looks like bottom of screen, flat, wrap-X. Y is log scale to any body on system with proper projection so all visible on same screen.
+
+i suggest in wrap mode render selected body:
+- selected star surface - above the screen,
+- selected planet surface - below,
+- selected moon - above.
+this schematics make possible seamless wrap to use flat surface of any body in its sphere of influence.
+
+think good about math of wrap projections.
+
+### explanation
+
+cylindrical/equiangular/other - let agent choose. wrap is circle planet surface transformed to line. it is placed in different location on canvas - planets down, moons and star - up. this is to easy transformation and smooth look.
+
+on click — fly pan to this body, zoom, transform projection. this is difficult task agent should think how better. anyway need to mention i want only projection transformation, but not fade/redraw other scene, etc. 3sec is ok.
+
+when surface line become flat? - this is difficult math question, it is from math, i dont want to strict it, to not overcomplicate task, so agent will choose good as his math projection formulas allow.
+
+line - horizontal. soil layer is 10vh thick, above or below the line depending on body: planet soil below, star/moon soil above. body lines are fixed (planet - bottom, star/moon - top), log scale is only for distant bodies.
+
+scale X - body perimeter exactly fit screen, wrap-x. this rule is only for selected body, other bodies are drawn as ico/circles.
+
+Y scale is auto - to fit all on screen. Y-log is distance from selected body center to other body center. distant body sizes - draw also as ico/circles, because in log they will is thin lines.
+soil - solid brown or red star. simple for now.
+
+only star, planets, moons. draw planet trajectories - good to visually see the math is good.
+
+view only, physics is not subject of this task.
