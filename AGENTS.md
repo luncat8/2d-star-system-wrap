@@ -62,7 +62,7 @@ getObj().data().action()
 	main.js — owns boot/wiring only: $, shared view object, frame loop. edit for load order, boot, wiring.
 	system.js — owns body table + kinematics. edit for orbits, sizes, periods, colors.
 	projection.js — owns view state, flat/wrap math, transition machine, angle trackers. edit for projection formulas, morph timing, seam rules.
-	render.js — owns canvas drawing + resize. edit for visuals, colors, soil, sampling.
+	render.js — owns canvas drawing + resize + star field. edit for visuals, colors, soil, sampling, stars.
 	input.js — owns click + wrap checkbox. edit for interaction bindings.
 	experiments/smoke.js — vm harness: loads index.html scripts, drives frames, checks continuity + wrap math.
 - new code goes to its owner, never appended "because the file is already there". no owner exists -> new file + header + map entry.
@@ -136,8 +136,9 @@ getObj().data().action()
 
 [rewritten each phase, never accumulated. only constraints that matter right now. delete lines that stopped mattering.]
 
-plan 0.1 (wrap projection) implemented; archive/0.1.0-*. manual browser pass pending: morph feel, seam invisibility, checkbox retarget.
-deferred by draft: drag-pan. next candidates: body spin (surface x drift), sphere-of-influence shading.
+plan 0.1 (wrap projection) and 0.2 (star field, hint, dpr cap) implemented; archive/0.1.0-*, archive/0.2.0-*.
+manual browser pass pending: morph feel, seam invisibility, checkbox retarget, star density.
+next: plan drag = scrubbed morph (design + pitfalls in findings; not a camera pan), then body spin (surface x drift), sphere-of-influence shading.
 smoke after any projection/render change; ascii-dump check when draw transforms change (see findings).
 
 ## housekeeping
