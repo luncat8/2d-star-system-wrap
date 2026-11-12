@@ -58,19 +58,35 @@
   three copies of every sampled curve; a 3x screen is 2.25x the fill of a 2x one for no visible
   gain at 1 px orbits and 2 px stars.
 
-## drag to wrap (design, not implemented)
+## drag: camera pan, not a scrub
 
-- a drag on a body should scrub the same morph a click animates, not pan a camera: progress =
-  distance moved toward the target's ground edge (planet down, star/moon up) over the distance
-  from the press to that edge. the wrap projection is its own zoom; no camera offset, no zoom.
-- while dragging, drive the morph parameter linearly from the pointer and ease only the release
-  settle (p > 0.5 settles in, else back) — an eased scrub lags the finger and jumps when the
-  settle starts.
-- start the scrub on pointerdown and treat no movement beyond a few px as a click, so the tap path
-  is unchanged.
-- a scrubbed morph needs the parameter drivable from outside the timer and a clean return to t=0:
-  reverting must restore the source state with no transition object left alive, or the next click
-  starts from a frozen blend.
-- press-time pops (target invisible at t=0, a wrap line with no source, glow mismatch) belong to a
-  dual from/to scene. a silhouette-collapse morph has none of them: at t=0 the target is already
-  its icon circle, so there is nothing to special-case.
+- a drag must work from any point on the canvas, not only on a body: a gesture that needs a hit
+  target is undiscoverable, and the morph already has a timer. press + no movement = the click.
+- do not ease the offset while the pointer is down (the view lags the finger); track 1:1 and carry
+  the release velocity out with a decay. that is what "smooth" means for direct manipulation.
+- keep the offset in the projection state, not in a global: transitions then interpolate it like
+  any other projected component, and every state starts at pan 0, so a tap recentres on its own.
+- in wrap the x offset is a rotation (period W, no clamp); y stays 0 — the ground line is pinned to
+  a screen side by the projection, so a vertical pan has nothing to move.
+- with 3-copy drawing, pan periodically: offset the copy loop by pan mod W. widening the copy count
+  to cover a large offset doubles the draw cost for nothing.
+- a scrubbed morph (drag distance = morph progress) is the alternative. rejected: it needs a hit
+  target and it fights the timer; the projection is a view, not a manipulator.
+
+## surface unfold (design, plan 0.4.0)
+
+- requirement: the ground surface enters and leaves through the screen edge, and the perimeter's
+  cut is never inside the viewport.
+- a per-sample lerp from the icon circle to the line opens the loop at once: mid-morph the curve
+  spans the width while its ends are inside the view (measured 602 px closing chord at t = 0.5,
+  y span 4 px), so the ribbon fill closes across the screen — a soil slab and a break line.
+- instead keep arc length constant = W and let curvature go to zero: `rho = W/phi`, `phi = 2π(1−e)`,
+  `x = xoff + rho sin(u/rho)`, `y = yline + dir·rho (1 − cos(u/rho))`, `u` in [−W/2, W/2]. at e = 0
+  it is a circle, at e = 1 a straight line, and the mapping is isometric at every e.
+- with `Rg = W/(2π)` the half-covered disk (centre on the edge) shows exactly half the perimeter,
+  π·Rg = W/2: the handover point between "sink to the edge" and "unfold" is exact, not tuned.
+- the cut is the pair of ends `u = ±W/2`: 2·Rg beyond the edge at e = 0, reaching the screen corners
+  only at e = 1. when an end first comes back into view it is `4·soilH²/(3W)` from a corner
+  (7 px at 1200x800), inside the soil fill.
+- fill the visible run plus the two points on the edge, and stroke the visible run only: the
+  closing edge must never be drawn, or the slab comes back.
