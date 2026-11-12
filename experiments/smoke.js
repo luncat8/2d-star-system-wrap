@@ -30,7 +30,7 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 let src = srcs.map(f => fs.readFileSync(path.join(root, f), 'utf8')).join('\n;\n');
-src += '\n;globalThis.__api = { projection, system, view, projGoTo, projSetMode, projElemAt, SIL_N, ORBIT_SAMP };\n';
+src += '\n;globalThis.__api = { projection, system, view, projGoTo, projSetMode, projElemAt, SIL_N, ORBIT_SAMP, starX, starY, starA, starN };\n';
 vm.runInContext(src, sandbox);
 
 const api = sandbox.__api;
@@ -203,9 +203,22 @@ function checkBuriedOwnOrbit(sel, up) {
 	}
 }
 
+function checkStars() {
+	chk(api.starN === 256, 'star count');
+	let inRange = true, bucketed = true;
+	for (let i = 0; i < api.starN; i++) {
+		if (!(api.starX[i] >= 0 && api.starX[i] < 1 && api.starY[i] >= 0 && api.starY[i] < 1)) inRange = false;
+		if (i && api.starA[i] < api.starA[i - 1]) bucketed = false;
+	}
+	chk(inRange, 'star coords normalized');
+	chk(bucketed, 'star alpha buckets contiguous');
+	console.log('stars plan=0.2 n=' + api.starN + ' buckets=3 mode=screen_space');
+}
+
 // ---- scenario ----
 chk(P.phase === 0 && P.steady.sel === 0 && P.copies === 1, 'initial state');
 chk(els.wrapBox.checked === false, 'initial checkbox');
+checkStars();
 frames(30);
 
 scen = 'flat->wrap(earth)';
