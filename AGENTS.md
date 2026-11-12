@@ -58,8 +58,13 @@ getObj().data().action()
 - relevance is decided from head -12. never read a full file just to learn what it is.
 
 - keep this map updated when ownership changes:
-	main.js — owns boot/wiring only. edit for load order, boot, wiring.
-	ui.js — owns <ui concern>. edit for <ui changes>.
+	index.html — owns canvas, wrap checkbox, css, script load order.
+	main.js — owns boot/wiring only: $, shared view object, frame loop. edit for load order, boot, wiring.
+	system.js — owns body table + kinematics. edit for orbits, sizes, periods, colors.
+	projection.js — owns view state, flat/wrap math, transition machine, angle trackers. edit for projection formulas, morph timing, seam rules.
+	render.js — owns canvas drawing + resize. edit for visuals, colors, soil, sampling.
+	input.js — owns click + wrap checkbox. edit for interaction bindings.
+	experiments/smoke.js — vm harness: loads index.html scripts, drives frames, checks continuity + wrap math.
 - new code goes to its owner, never appended "because the file is already there". no owner exists -> new file + header + map entry.
 - file > ~500 lines = defect. split by feature within the same plan.
 - moves are pure moves: contiguous ranges, snap to enclosing declarations, no behavior change.
@@ -131,8 +136,9 @@ getObj().data().action()
 
 [rewritten each phase, never accumulated. only constraints that matter right now. delete lines that stopped mattering.]
 
-e.g. splitting ui.js per plan 0.4: dom_smoke after each move, benches at end only.
-e.g. experiment loader derives scripts from index.html and runs them in one VM context.
+plan 0.1 (wrap projection) implemented; archive/0.1.0-*. manual browser pass pending: morph feel, seam invisibility, checkbox retarget.
+deferred by draft: drag-pan. next candidates: body spin (surface x drift), sphere-of-influence shading.
+smoke after any projection/render change; ascii-dump check when draw transforms change (see findings).
 
 ## housekeeping
 
