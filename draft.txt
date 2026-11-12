@@ -13,6 +13,9 @@ this schematics make possible seamless wrap to use flat surface of any body in i
 
 think good about math of wrap projections.
 
+### deferred
+pan camera drag, (no zoom - because for zoon user just move object down and go log scaled zoom by design)
+
 ### explanation
 
 cylindrical/equiangular/other - let agent choose. wrap is circle planet surface transformed to line. it is placed in different location on canvas - planets down, moons and star - up. this is to easy transformation and smooth look.
@@ -31,3 +34,7 @@ soil - solid brown or red star. simple for now.
 only star, planets, moons. draw planet trajectories - good to visually see the math is good.
 
 view only, physics is not subject of this task.
+
+### typical bugs
+
+related to sign or direction, short-arc X for wrap→wrap. it is hard to explain but it looks like write cross-direction X each body change. this cause 2 sides of screen exchange at center of the Y screen. so final result is good but transformation path is wrong direction.

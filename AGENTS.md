@@ -59,7 +59,11 @@ getObj().data().action()
 
 - keep this map updated when ownership changes:
 	main.js — owns boot/wiring only. edit for load order, boot, wiring.
-	ui.js — owns <ui concern>. edit for <ui changes>.
+	world.js — owns world model, body table, orbit motion. edit for bodies, orbit elements, speeds.
+	projection.js — owns map/wrap projection and log scale. edit for projection math, dmax smoothing.
+	render.js — owns canvas drawing. edit for colors, icon sizes, line style.
+	transition.js — owns selection morph. edit for duration, easing, ground band.
+	input.js — owns pointer hit test and selection. edit for hit radius.
 - new code goes to its owner, never appended "because the file is already there". no owner exists -> new file + header + map entry.
 - file > ~500 lines = defect. split by feature within the same plan.
 - moves are pure moves: contiguous ranges, snap to enclosing declarations, no behavior change.
@@ -129,10 +133,7 @@ getObj().data().action()
 
 ## current workstream
 
-[rewritten each phase, never accumulated. only constraints that matter right now. delete lines that stopped mattering.]
-
-e.g. splitting ui.js per plan 0.4: dom_smoke after each move, benches at end only.
-e.g. experiment loader derives scripts from index.html and runs them in one VM context.
+plan 0.1 wrap projection: node math + stub-canvas smoke pass. only the browser manual pass list (look/feel) is left. no un-wrap in this version.
 
 ## housekeeping
 
