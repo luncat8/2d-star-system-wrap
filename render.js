@@ -2,12 +2,17 @@
 // edit for: visuals, colors, soil, orbit/silhouette sampling
 
 const ORBIT_SAMP = 128;
+const STAR_N = 256;
+const STAR_ALPHA = [0.18, 0.4, 0.66];
+const STAR_COL = '#cfd8ee';
 
 // indexed by body type: star, planet, moon
 const SOIL_COL = ['#7a2014', '#5e3a1e', '#6e6a66'];
 const LINE_COL = ['#d24a24', '#8a5a33', '#9a9691'];
 
 let ox = null, oy = null, osing = null, sx = null, sy = null;
+let starX = null, starY = null, starS = null, starA = null, starN = 0;
+let starSeed = 0x2f6e2b1;
 
 function renderInit() {
 	projInit(ORBIT_SAMP);
@@ -16,11 +21,51 @@ function renderInit() {
 	osing = new Uint8Array(ORBIT_SAMP);
 	sx = new Float64Array(SIL_N);
 	sy = new Float64Array(SIL_N);
+	renderStarsInit();
 	renderResize();
 }
 
+// stars are screen-space and generated once: no parallax, no twinkle, no work on resize
+function renderStarsInit() {
+	const per = Math.ceil(STAR_N / STAR_ALPHA.length);
+	starX = new Float32Array(STAR_N);
+	starY = new Float32Array(STAR_N);
+	starS = new Float32Array(STAR_N);
+	starA = new Float32Array(STAR_N);
+	let i = 0;
+	for (let b = 0; b < STAR_ALPHA.length; b++) {
+		for (let k = 0; k < per && i < STAR_N; k++, i++) {
+			starX[i] = starRand();
+			starY[i] = starRand();
+			starS[i] = starRand() < 0.8 ? 1 : 2;
+			starA[i] = STAR_ALPHA[b];
+		}
+	}
+	starN = i;
+}
+
+function starRand() {
+	starSeed = (starSeed + 0x6d2b79f5) | 0;
+	let t = Math.imul(starSeed ^ (starSeed >>> 15), 1 | starSeed);
+	t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+	return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+
+function renderStars(ctx) {
+	const w = view.w, h = view.h;
+	ctx.fillStyle = STAR_COL;
+	let a = -1;
+	// buckets are contiguous, so globalAlpha changes once per bucket per frame
+	for (let i = 0; i < starN; i++) {
+		if (starA[i] !== a) ctx.globalAlpha = a = starA[i];
+		ctx.fillRect(starX[i] * w, starY[i] * h, starS[i], starS[i]);
+	}
+	ctx.globalAlpha = 1;
+}
+
 function renderResize() {
-	const dpr = window.devicePixelRatio || 1;
+	// cap at 2: fill cost is dpr^2 and every sampled curve is drawn 3 times
+	const dpr = Math.min(window.devicePixelRatio || 1, 2);
 	const w = window.innerWidth, h = window.innerHeight;
 	view.canvas.width = Math.round(w * dpr);
 	view.canvas.height = Math.round(h * dpr);
@@ -36,6 +81,7 @@ function renderFrame(now) {
 	const ctx = view.ctx;
 	ctx.fillStyle = '#05060a';
 	ctx.fillRect(0, 0, view.w, view.h);
+	renderStars(ctx);
 	renderOrbits(ctx);
 	renderGround(ctx);
 	renderBodies(ctx);
