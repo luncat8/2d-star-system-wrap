@@ -58,6 +58,26 @@
   three copies of every sampled curve; a 3x screen is 2.25x the fill of a 2x one for no visible
   gain at 1 px orbits and 2 px stars.
 
+## log view: the scale is a fit, not a constant
+
+- a fixed scale (e.g. one circumference = W) makes every other decision wrong: in a
+  follow view the far bodies sit s·log(d/r) above the ground line and leave the screen
+  top; in an empty-space drag the same scale deep-zooms toward the grabbed patch and
+  the whole system is off-screen ("nothing good at all").
+- fit instead: s = (G−T)·H / max(log(Rfar/ref), 0.2) — ref at the anchor/ground line,
+  Rfar (farthest surface extent from the pole) at the top margin. re-fit live per frame
+  so a moving followed body keeps the whole system in view; the cost is one 13-body loop.
+- the drag's mid path is what reveals a bad zoom law: interpolating the scale in log
+  space (sqrt(s0·s1) mid) leaves the visible log ring too narrow — the system sits in
+  the gap below the screen for half the gesture. lerp the zoom density 1/s linearly:
+  the ring widens steadily onto the system and every body stays on screen.
+- a body anchor must track a surface point (top of the disk), not the grab point:
+  the grab sits at |A−c|, which is 0 for a centre grab (log(0) in the anchoring) and
+  ≠ the reference distance otherwise. the surface point is also the click-follow anchor,
+  so drag and click end at the same view.
+- a body whose disk contains the pole may legitimately sit below the ground line
+  (buried centre, fill below its surface curve) — assertions must skip it, not fail.
+
 ## drag: camera pan, not a scrub
 
 - a drag must work from any point on the canvas, not only on a body: a gesture that needs a hit

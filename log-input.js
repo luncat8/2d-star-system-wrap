@@ -1,7 +1,7 @@
 // owns: pointer gestures, body selection and free-flight controls
 // edit for: interaction and keyboard bindings
 
-const gesture = { active: false, dragging: false, id: 0, x: 0, y: 0, wx: 0, wy: 0, px: 0, py: 0, scale: 0, distance: 0 };
+const gesture = { active: false, dragging: false, id: 0, x: 0, y: 0, px: 0, py: 0, scale: 0, rx: 0, ry: 0, qx: 0, qy: 0, ref: 1 };
 const flightKeys = new Set();
 
 function inputInit() {
@@ -38,9 +38,11 @@ function inputDown(ev) {
 	cameraUnproject(ev.clientX, ev.clientY);
 	gesture.active = true; gesture.dragging = false; gesture.id = ev.pointerId;
 	gesture.x = ev.clientX; gesture.y = ev.clientY;
-	gesture.wx = camera.x; gesture.wy = camera.y;
 	gesture.px = camera.px; gesture.py = camera.py; gesture.scale = camera.scale;
-	gesture.distance = Math.hypot(camera.x - camera.px, camera.y - camera.py);
+	// ground state snapshot at press, so a moving body cannot reclassify mid-drag
+	cameraAnchorGround(camera.x, camera.y);
+	gesture.rx = anchor.rx; gesture.ry = anchor.ry;
+	gesture.qx = anchor.qx; gesture.qy = anchor.qy; gesture.ref = anchor.ref;
 	view.canvas.setPointerCapture(ev.pointerId);
 }
 
@@ -50,15 +52,20 @@ function inputMove(ev) {
 	if (!gesture.dragging && Math.hypot(dx, dy) < 4) return;
 	gesture.dragging = true;
 	camera.target = -1; camera.transition = null;
-	const k = Math.max(0, Math.min(1, dy / Math.max(80, view.h * 0.86 - gesture.y)));
-	const endDistance = Math.max(gesture.distance / gesture.scale * 0.3, 1e-5);
-	const poleProgress = 1 - (1 - k) ** 3;
-	camera.px = gesture.px + (gesture.wx - gesture.px) * poleProgress;
-	camera.py = gesture.py + (gesture.wy - endDistance - gesture.py) * poleProgress;
-	camera.scale = gesture.scale + (view.w / LOG_TAU - gesture.scale) * k;
-	const ax = gesture.wx - camera.px, ay = gesture.wy - camera.py;
-	camera.ox = ev.clientX - camera.scale * Math.atan2(ax, ay);
-	camera.oy = ev.clientY + camera.scale * Math.log(Math.max(Math.hypot(ax, ay), 1e-12));
+	// downward progress to the ground line drives pole, bearing and zoom to the anchor's ground state
+	const k = Math.max(0, Math.min(1, dy / Math.max(80, view.h * GROUND - gesture.y)));
+	const d0 = Math.max(Math.hypot(gesture.rx - gesture.px, gesture.ry - gesture.py), 1e-9);
+	const d = d0 * Math.pow(gesture.ref / d0, k);
+	const b0 = Math.atan2(gesture.px - gesture.rx, gesture.py - gesture.ry);
+	const db = ((Math.atan2(gesture.qx - gesture.rx, gesture.qy - gesture.ry) - b0 + Math.PI) % LOG_TAU + LOG_TAU) % LOG_TAU - Math.PI;
+	const px = gesture.rx + d * Math.sin(b0 + db * k);
+	const py = gesture.ry + d * Math.cos(b0 + db * k);
+	camera.px = px; camera.py = py;
+	// zoom density (1/s) lerps, so the visible log ring widens onto the system mid-drag
+	const sEnd = cameraFitScale(gesture.qx, gesture.qy, gesture.ref);
+	camera.scale = 1 / ((1 - k) / gesture.scale + k / sEnd);
+	camera.ox = ev.clientX - camera.scale * Math.atan2(gesture.rx - px, gesture.ry - py);
+	camera.oy = ev.clientY + camera.scale * Math.log(d);
 	inputStatus();
 }
 
