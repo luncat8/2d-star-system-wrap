@@ -1,7 +1,7 @@
 // owns: pointer gestures, body selection and free-flight controls
 // edit for: interaction and keyboard bindings
 
-const gesture = { active: false, dragging: false, id: 0, x: 0, y: 0, px: 0, py: 0, scale: 0, rx: 0, ry: 0, qx: 0, qy: 0, ref: 1 };
+const gesture = { active: false, dragging: false, id: 0, x: 0, y: 0, px: 0, py: 0, scale: 0, rx: 0, ry: 0, qx: 0, qy: 0, ref: 1, line: 0 };
 const flightKeys = new Set();
 
 function inputInit() {
@@ -43,6 +43,7 @@ function inputDown(ev) {
 	cameraAnchorGround(camera.x, camera.y);
 	gesture.rx = anchor.rx; gesture.ry = anchor.ry;
 	gesture.qx = anchor.qx; gesture.qy = anchor.qy; gesture.ref = anchor.ref;
+	gesture.line = anchor.body < 0 ? GROUND : GROUND_BODY;
 	view.canvas.setPointerCapture(ev.pointerId);
 }
 
@@ -52,8 +53,8 @@ function inputMove(ev) {
 	if (!gesture.dragging && Math.hypot(dx, dy) < 4) return;
 	gesture.dragging = true;
 	camera.target = -1; camera.transition = null;
-	// downward progress to the ground line drives pole, bearing and zoom to the anchor's ground state
-	const k = Math.max(0, Math.min(1, dy / Math.max(80, view.h * GROUND - gesture.y)));
+	// downward progress to the anchor's ground line drives pole, bearing and zoom to its ground state
+	const k = Math.max(0, Math.min(1, dy / Math.max(80, view.h * gesture.line - gesture.y)));
 	const d0 = Math.max(Math.hypot(gesture.rx - gesture.px, gesture.ry - gesture.py), 1e-9);
 	const d = d0 * Math.pow(gesture.ref / d0, k);
 	const b0 = Math.atan2(gesture.px - gesture.rx, gesture.py - gesture.ry);
@@ -62,7 +63,7 @@ function inputMove(ev) {
 	const py = gesture.ry + d * Math.cos(b0 + db * k);
 	camera.px = px; camera.py = py;
 	// zoom density (1/s) lerps, so the visible log ring widens onto the system mid-drag
-	const sEnd = cameraFitScale(gesture.qx, gesture.qy, gesture.ref);
+	const sEnd = cameraFitScale(gesture.qx, gesture.qy, gesture.ref, gesture.line);
 	camera.scale = 1 / ((1 - k) / gesture.scale + k / sEnd);
 	camera.ox = ev.clientX - camera.scale * Math.atan2(gesture.rx - px, gesture.ry - py);
 	camera.oy = ev.clientY + camera.scale * Math.log(d);

@@ -60,13 +60,13 @@ getObj().data().action()
 - keep this map updated when ownership changes:
 	index.html — logarithmic view markup, styling, and script order.
 	log-main.js — boot and frame wiring.
-	log-system.js — body table and kinematics, including free planet.
-	log-projection.js — logarithmic camera, inverse and follow.
-	log-render.js — projected geometry, stars and resize.
+	log-system.js — body table, atmosphere and interior layer profiles, kinematics, free planet.
+	log-projection.js — logarithmic camera, damped fit, ground lines, inverse and follow.
+	log-render.js — projected geometry, air band, interior layer fills and labels, stars, resize.
 	log-input.js — dragging, selection and free-flight controls.
 	legacy.html — previous transition demo and script order.
 	main.js, system.js, projection.js, surface.js, settings.js, render.js, input.js — previous transition demo.
-	experiments/log-smoke.js — log projection, interaction and follow checks.
+	experiments/log-smoke.js — log projection, interior layers, interaction and follow checks.
 	experiments/smoke.js, experiments/surface-smoke.js — previous demo checks.
 - new code goes to its owner, never appended "because the file is already there". no owner exists -> new file + header + map entry.
 - file > ~500 lines = defect. split by feature within the same plan.
@@ -137,8 +137,9 @@ getObj().data().action()
 
 ## current workstream
 
-The main view uses a logarithmic camera; the earlier transition demo lives in legacy.html.
-Manual browser pass pending: drag feel, seam behavior, body selection and free flight.
+The main view uses a logarithmic camera with a damped fit and a log-depth interior cutaway; the
+earlier transition demo lives in legacy.html. Manual browser pass pending: atmosphere and interior
+layer scale, zoom stability, drag feel, seam behavior, body selection and free flight.
 
 ## housekeeping
 

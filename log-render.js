@@ -1,4 +1,4 @@
-// owns: rendering projected bodies, orbits, stars and resizing
+// owns: rendering projected bodies, atmosphere, interior layers, orbits, stars and resizing
 // edit for: visual styling and curve sampling
 
 const CURVE_N = 256;
@@ -54,19 +54,88 @@ function renderCurveCopies(ctx, fill) {
 	}
 }
 
-// A disk containing the logarithm's pole covers everything below its ray intersections.
-function renderEnclosingBody(ctx, i) {
-	const dx = system.wx[i] - camera.px, dy = system.wy[i] - camera.py, r = system.radius[i];
+// A sphere containing the logarithm's pole covers everything below its ray intersections.
+function enclosingY(dx, dy, r, x) {
+	const a = (x - camera.ox) / camera.scale;
+	const dot = dx * Math.sin(a) + dy * Math.cos(a);
+	const d = dot + Math.sqrt(Math.max(0, dot * dot + r * r - dx * dx - dy * dy));
+	return camera.oy - camera.scale * Math.log(Math.max(d, 1e-12));
+}
+
+function renderEnclosingSphere(ctx, dx, dy, r) {
 	ctx.beginPath();
 	for (let s = 0; s <= CURVE_N; s++) {
 		const x = view.w * s / CURVE_N;
-		const a = (x - camera.ox) / camera.scale;
-		const dot = dx * Math.sin(a) + dy * Math.cos(a);
-		const d = dot + Math.sqrt(Math.max(0, dot * dot + r * r - dx * dx - dy * dy));
-		const y = camera.oy - camera.scale * Math.log(Math.max(d, 1e-12));
-		if (!s) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+		if (!s) ctx.moveTo(x, enclosingY(dx, dy, r, x)); else ctx.lineTo(x, enclosingY(dx, dy, r, x));
 	}
 	ctx.lineTo(view.w, view.h + 1); ctx.lineTo(0, view.h + 1); ctx.closePath(); ctx.fill();
+}
+
+// The haze is the ring between two enclosing curves, filled as one band so it costs the
+// strip and not another full interior fill.
+function renderEnclosingBand(ctx, dx, dy, rOuter, rInner) {
+	ctx.beginPath();
+	for (let s = 0; s <= CURVE_N; s++) {
+		const x = view.w * s / CURVE_N;
+		if (!s) ctx.moveTo(x, enclosingY(dx, dy, rOuter, x)); else ctx.lineTo(x, enclosingY(dx, dy, rOuter, x));
+	}
+	for (let s = CURVE_N; s >= 0; s--) {
+		const x = view.w * s / CURVE_N;
+		ctx.lineTo(x, enclosingY(dx, dy, rInner, x));
+	}
+	ctx.closePath(); ctx.fill();
+}
+
+// Nested fills: each layer paints inside its own boundary, so a deeper band covers the
+// previous one. y grows with depth, so outer-to-inner also means top-to-bottom. The air
+// sphere paints first; the surface band covers its inside, leaving a haze above the line.
+function renderEnclosingBody(ctx, i) {
+	const dx = system.wx[i] - camera.px, dy = system.wy[i] - camera.py;
+	const R = system.radius[i], d2 = dx * dx + dy * dy;
+	const profile = interiorProfiles[system.profile[i]], bands = profile.bands;
+	const air = R * profile.air;
+	if (d2 < air * air) {
+		ctx.fillStyle = profile.airColor;
+		renderEnclosingBand(ctx, dx, dy, air, R);
+	}
+	let r = R;
+	for (let b = 0; b < bands.length; b++) {
+		if (d2 < r * r) {
+			ctx.fillStyle = b ? bands[b].color : system.color[i];
+			renderEnclosingSphere(ctx, dx, dy, r);
+		}
+		r = bands[b].inner * R;
+	}
+}
+
+function renderBandLabel(ctx, name, top, bottom) {
+	if (bottom < 0 || top > view.h) return;
+	const y0 = Math.max(top, 0), y1 = Math.min(bottom, view.h);
+	if (y1 - y0 < 14) return;
+	ctx.strokeText(name, view.w / 2, (y0 + y1) / 2);
+	ctx.fillText(name, view.w / 2, (y0 + y1) / 2);
+}
+
+// Names sit in the middle of their band, and only the flat follow view is labelled:
+// off centre the boundaries are curves and a centred label would miss its band.
+function renderLayerLabels(ctx, i) {
+	const dx = system.wx[i] - camera.px, dy = system.wy[i] - camera.py;
+	const R = system.radius[i], near = R * 0.02;
+	if (dx * dx + dy * dy > near * near) return;
+	const profile = interiorProfiles[system.profile[i]], bands = profile.bands;
+	ctx.font = '11px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+	ctx.fillStyle = 'rgba(246,249,255,0.95)';
+	ctx.strokeStyle = 'rgba(5,6,10,0.8)'; ctx.lineWidth = 3; ctx.lineJoin = 'round';
+	const ground = camera.oy - camera.scale * Math.log(R);
+	renderBandLabel(ctx, profile.airName, camera.oy - camera.scale * Math.log(R * profile.air), ground);
+	let yTop = ground;
+	for (let b = 0; b < bands.length; b++) {
+		const r = bands[b].inner * R;
+		const yBottom = r > 0 ? camera.oy - camera.scale * Math.log(r) : view.h;
+		renderBandLabel(ctx, bands[b].name, yTop, yBottom);
+		yTop = yBottom;
+	}
+	ctx.lineWidth = 1; ctx.textBaseline = 'alphabetic';
 }
 
 function renderFrame() {
@@ -80,9 +149,10 @@ function renderFrame() {
 		if (p < 0) continue;
 		renderCurve(system.wx[p], system.wy[p], system.orbitA[i]); renderCurveCopies(ctx, false);
 	}
+	let ground = -1;
 	for (let i = 0; i < system.nb; i++) {
 		ctx.fillStyle = system.color[i];
-		if (Math.hypot(system.wx[i] - camera.px, system.wy[i] - camera.py) < system.radius[i]) renderEnclosingBody(ctx, i);
+		if (Math.hypot(system.wx[i] - camera.px, system.wy[i] - camera.py) < system.radius[i]) { renderEnclosingBody(ctx, i); ground = i; }
 		else { renderCurve(system.wx[i], system.wy[i], system.radius[i]); renderCurveCopies(ctx, true); }
 	}
 	ctx.font = '11px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#d5dfef';
@@ -95,6 +165,7 @@ function renderFrame() {
 		const r = camera.scale * Math.asin(Math.min(1, system.radius[i] / Math.hypot(system.wx[i] - camera.px, system.wy[i] - camera.py)));
 		ctx.fillText(system.name[i], x, camera.y - Math.max(4, r) - 6);
 	}
+	if (ground >= 0) renderLayerLabels(ctx, ground);
 }
 
-if (typeof module !== 'undefined') module.exports = { renderInit, renderResize, renderFrame, renderCurve, renderEnclosingBody };
+if (typeof module !== 'undefined') module.exports = { renderInit, renderResize, renderFrame, renderCurve, renderEnclosingBody, renderLayerLabels };

@@ -3,9 +3,19 @@
 
 const LOG_TAU = 2 * Math.PI;
 const GROUND = 0.86;
+// a followed body pins its surface higher: the strip below is the log depth cutaway
+const GROUND_BODY = 0.62;
 const TOP = 0.04;
+// the fitted log span is sampled and damped: it widens at once when a body recedes,
+// holds through an orbit-sized swing, and only closes fast when it is far too wide
+const FIT_MS = 400;
+const FIT_GROW_MS = 200;
+const FIT_HOLD_MS = 90000;
+const FIT_CLOSE_MS = 500;
+const FIT_CLOSE_RATIO = 0.85;
+const fit = { range: 1, target: 1, at: 0, time: 0, ready: false };
 const camera = { px: 0, py: 0, scale: 1, ox: 0, oy: 0, x: 0, y: 0, target: -1, transition: null };
-const anchor = { qx: 0, qy: 0, rx: 0, ry: 0, ref: 1 };
+const anchor = { qx: 0, qy: 0, rx: 0, ry: 0, ref: 1, body: -1 };
 
 function cameraReset() {
 	const s = view.w * 6;
@@ -18,6 +28,7 @@ function cameraReset() {
 	camera.oy = view.h / 2 + s * Math.log(d);
 	camera.target = -1;
 	camera.transition = null;
+	fit.ready = false;
 }
 
 function cameraProject(x, y) {
@@ -43,10 +54,31 @@ function cameraMaxExtent(px, py) {
 	return max;
 }
 
-// scale mapping the log range [ref, farthest extent] onto the screen, so every body fits
-function cameraFitScale(px, py, ref) {
-	const range = Math.max(Math.log(cameraMaxExtent(px, py) / ref), 0.2);
-	return (GROUND - TOP) * view.h / range;
+function cameraFitRange(px, py, ref) {
+	return Math.max(Math.log(cameraMaxExtent(px, py) / ref), 0.2);
+}
+
+// scale mapping the log range [ref, farthest extent] above `line`, so every body fits
+function cameraFitScale(px, py, ref, line) {
+	return (line - TOP) * view.h / cameraFitRange(px, py, ref);
+}
+
+// the span widens quickly when a body recedes and narrows slowly when it returns, so the
+// farthest body stays fitted without the whole system breathing at the orbit period
+function cameraFitDamped(px, py, ref, line, now) {
+	if (!fit.ready) {
+		fit.range = fit.target = cameraFitRange(px, py, ref);
+		fit.at = fit.time = now; fit.ready = true;
+	} else if (now - fit.at >= FIT_MS) {
+		fit.target = cameraFitRange(px, py, ref);
+		fit.at = now;
+	}
+	const dt = Math.min(Math.max(now - fit.time, 0), 100);
+	fit.time = now;
+	const tau = fit.target > fit.range ? FIT_GROW_MS
+		: fit.target < fit.range * FIT_CLOSE_RATIO ? FIT_CLOSE_MS : FIT_HOLD_MS;
+	fit.range += (fit.target - fit.range) * (1 - Math.exp(-dt / tau));
+	return (line - TOP) * view.h / fit.range;
 }
 
 // ground state for a world anchor: pole target q, 1:1 reference point r
@@ -57,7 +89,7 @@ function cameraAnchorGround(ax, ay) {
 		if (d < system.radius[i]) {
 			anchor.qx = system.wx[i]; anchor.qy = system.wy[i];
 			anchor.rx = system.wx[i]; anchor.ry = system.wy[i] + system.radius[i];
-			anchor.ref = system.radius[i];
+			anchor.ref = system.radius[i]; anchor.body = i;
 			return;
 		}
 	}
@@ -73,7 +105,7 @@ function cameraAnchorGround(ax, ay) {
 	anchor.qx = system.wx[bi] + system.radius[bi] * dx / dl;
 	anchor.qy = system.wy[bi] + system.radius[bi] * dy / dl;
 	anchor.rx = ax; anchor.ry = ay;
-	anchor.ref = ref;
+	anchor.ref = ref; anchor.body = -1;
 }
 
 function cameraFollow(i, now) {
@@ -82,17 +114,17 @@ function cameraFollow(i, now) {
 	const x = camera.x - period * Math.round((camera.x - view.w / 2) / period);
 	camera.target = i;
 	camera.transition = { start: now, px: camera.px, py: camera.py, scale: camera.scale,
-		endScale: cameraFitScale(system.wx[i], system.wy[i], system.radius[i]), x: x, y: camera.y };
+		endScale: cameraFitScale(system.wx[i], system.wy[i], system.radius[i], GROUND_BODY), x: x, y: camera.y };
 }
 
 function cameraStep(now) {
 	if (camera.target < 0) return;
 	const i = camera.target, tr = camera.transition;
-	const scale = cameraFitScale(system.wx[i], system.wy[i], system.radius[i]);
 	if (!tr) {
 		camera.px = system.wx[i]; camera.py = system.wy[i];
-		camera.scale = scale; camera.ox = view.w / 2;
-		camera.oy = view.h * GROUND + scale * Math.log(system.radius[i]);
+		camera.ox = view.w / 2;
+		camera.scale = cameraFitDamped(system.wx[i], system.wy[i], system.radius[i], GROUND_BODY, now);
+		camera.oy = view.h * GROUND_BODY + camera.scale * Math.log(system.radius[i]);
 		return;
 	}
 	const t = Math.max(0, Math.min(1, (now - tr.start) / 1800));
@@ -102,8 +134,12 @@ function cameraStep(now) {
 	camera.scale = Math.exp(Math.log(tr.scale) + (Math.log(tr.endScale) - Math.log(tr.scale)) * k);
 	const ax = system.wx[i] - camera.px, ay = system.wy[i] + system.radius[i] - camera.py;
 	camera.ox = tr.x + (view.w / 2 - tr.x) * k - camera.scale * Math.atan2(ax, ay);
-	camera.oy = tr.y + (view.h * GROUND - tr.y) * k + camera.scale * Math.log(Math.max(Math.hypot(ax, ay), 1e-12));
-	if (t === 1) camera.transition = null;
+	camera.oy = tr.y + (view.h * GROUND_BODY - tr.y) * k + camera.scale * Math.log(Math.max(Math.hypot(ax, ay), 1e-12));
+	if (t < 1) return;
+	camera.transition = null;
+	fit.range = (GROUND_BODY - TOP) * view.h / tr.endScale;
+	fit.target = cameraFitRange(system.wx[i], system.wy[i], system.radius[i]);
+	fit.at = fit.time = now; fit.ready = true;
 }
 
-if (typeof module !== 'undefined') module.exports = { camera, anchor, GROUND, cameraReset, cameraProject, cameraUnproject, cameraMaxExtent, cameraFitScale, cameraAnchorGround, cameraFollow, cameraStep };
+if (typeof module !== 'undefined') module.exports = { camera, anchor, fit, GROUND, GROUND_BODY, TOP, FIT_MS, FIT_GROW_MS, FIT_HOLD_MS, FIT_CLOSE_MS, FIT_CLOSE_RATIO, cameraReset, cameraProject, cameraUnproject, cameraMaxExtent, cameraFitRange, cameraFitScale, cameraFitDamped, cameraAnchorGround, cameraFollow, cameraStep };

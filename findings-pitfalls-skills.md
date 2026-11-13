@@ -32,6 +32,9 @@
   NOT sandbox properties, so exports must be explicit.
 - stub: document.getElementById -> element table; canvas ctx -> object of no-op methods +
   settable props; requestAnimationFrame -> capture callback, drive manually with fake ts.
+- run the concatenated page scripts with a leading `"use strict";`: the page is classic non-strict
+  js, so a missing `let` silently creates a global and a math test never sees it. strict turns it
+  into a ReferenceError at the first render call.
 - continuity assertion that catches seam/lap bugs: per-element per-frame periodic screen delta
   < 0.25 screen; skip samples flagged singular or invisible (garbage x by design).
 - ascii-dump projected positions (grid of chars, 3 copies + relift like the renderer): catches
@@ -110,3 +113,37 @@
   (7 px at 1200x800), inside the soil fill.
 - fill the visible run plus the two points on the edge, and stroke the visible run only: the
   closing edge must never be drawn, or the slab comes back.
+
+## underground: log depth needs a fixed horizon
+
+- a log-radius map already gives the wanted underground scale: px/km = s/d grows with depth, so
+  deep layers get hundreds of pixels and a surface layer a hairline. no second projection is needed;
+  only the followed body's surface line has to move up to expose the strip below it.
+- pin the surface line as a screen fraction (0.62 H), not a fixed number of visible decades:
+  a fixed decade count moves the line with Rfar and the horizon drifts while the body orbits.
+  the depth span then varies per body (2.4 e-folds for the star, 3.6 for a small moon).
+- layers as nested enclosing-sphere fills: fill inside the outermost boundary, then inside each
+  deeper boundary, outermost first. every deeper sphere is inside the previous one, so no clipping;
+  skip a sphere that does not contain the pole.
+- label a band only when >= 14 px of it are visible (11 px text). a realistic crust is ~1 px at
+  any useful depth span, so the top band stays unlabelled by design; a dark strokeText halo keeps
+  the names readable on both dark and bright band colours.
+- the surface is the log origin both ways; draw the atmosphere as the band between its outer and
+  the surface enclosing curves. filling the air sphere and painting the body over it costs another
+  full-height interior fill for a 30 px strip.
+- a realistic atmosphere (100 km) is ~2 px on this scale. pick the band height from the log
+  position you want to debug, not from a screen-space minimum, or the top edge stops matching the
+  geometry below it.
+
+## fit: a per-frame fit pumps with the orbits
+
+- recomputing the fitted span every frame makes the zoom breathe at the orbit period: following
+  Earth, the raw fitted scale swings 10 % over 30 s. sample the target every ~400 ms and ease the
+  span with a time-based EMA (dt clamped, so a tab switch does not jump).
+- use an asymmetric rate: fast when the span must grow (a receding body is fitted at once), a long
+  hold for small overshoots (an orbit-sized swing is not worth following), and a fast close when
+  the span is far too wide (>15 %), so flying back into the system still refits quickly.
+- the held span sits at the widest recent requirement: top margin has slack, nothing clips, and
+  the visible scale variation drops from 10 % to 2.4 % per minute.
+- seed the damped span from the follow transition's end scale; otherwise the handover from the
+  timed interpolation to the steady camera jumps by one EMA step.

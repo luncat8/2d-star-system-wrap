@@ -1,9 +1,33 @@
-// owns: body table + kinematics, including a freely movable planet
-// edit for: orbits, sizes, periods, colors, sim timing
+// owns: body table, interior layer profiles + kinematics, including a freely movable planet
+// edit for: orbits, sizes, periods, colors, layers, sim timing
+
+// bands run from the surface inward, inner is a fraction of the body radius; the top
+// band draws in the body colour, so the cutaway joins the body's sky appearance.
+// air is the radius multiplier of the haze above the surface; 0.25 R keeps it
+// legible on the log scale, where a real 100 km atmosphere would be one pixel.
+const interiorProfiles = [
+	{ air: 1.25, airName: 'atmosphere', airColor: 'rgba(112,164,236,0.3)', bands: [
+		{ name: 'crust', inner: 0.99 },
+		{ name: 'mantle', inner: 0.546, color: '#3d4a66' },
+		{ name: 'outer core', inner: 0.191, color: '#b0512e' },
+		{ name: 'inner core', inner: 0, color: '#f2cf72' },
+	] },
+	{ air: 1.3, airName: 'corona', airColor: 'rgba(255,186,84,0.26)', bands: [
+		{ name: 'photosphere', inner: 0.98 },
+		{ name: 'convective zone', inner: 0.7, color: '#e0763a' },
+		{ name: 'radiative zone', inner: 0.28, color: '#a8352b' },
+		{ name: 'core', inner: 0, color: '#fff0b8' },
+	] },
+	{ air: 1.25, airName: 'atmosphere', airColor: 'rgba(226,186,124,0.26)', bands: [
+		{ name: 'envelope', inner: 0.84 },
+		{ name: 'metallic hydrogen', inner: 0.25, color: '#7a6a9a' },
+		{ name: 'core', inner: 0, color: '#d9b06a' },
+	] },
+];
 
 const system = {
 	nb: 0,
-	name: null, type: null, parent: null,
+	name: null, type: null, parent: null, profile: null,
 	orbitA: null, radius: null, period: null, phase: null, color: null,
 	wx: null, wy: null, rmax: null,
 	time: 0,
@@ -12,26 +36,27 @@ const system = {
 // earth year = 60s, planets kepler-scaled; moon periods real-ratio (1d=0.164s), clamped >=2s
 function sysInit() {
 	const rows = [
-		// name, type, parent, a, radius, period(s), phase, color
-		['sun', 0, -1, 0, 0.090, 0, 0, '#ffd75e'],
-		['mercury', 1, 0, 0.62, 0.020, 19.8, 0.4, '#b8a89a'],
-		['venus', 1, 0, 0.95, 0.034, 37.5, 2.1, '#e8c468'],
-		['earth', 1, 0, 1.30, 0.038, 60, 4.0, '#5b8dd9'],
-		['mars', 1, 0, 1.80, 0.028, 97.9, 1.1, '#c96f4a'],
-		['jupiter', 1, 0, 2.60, 0.085, 169.7, 5.3, '#d9a066'],
-		['saturn', 1, 0, 3.40, 0.072, 253.5, 3.2, '#e0cf98'],
-		['luna', 2, 3, 0.12, 0.012, 4.5, 0.7, '#cfcfcf'],
-		['phobos', 2, 4, 0.055, 0.006, 2.0, 2.4, '#a08878'],
-		['io', 2, 5, 0.15, 0.010, 2.0, 4.4, '#e8d060'],
-		['callisto', 2, 5, 0.32, 0.013, 2.75, 1.9, '#9a8a7a'],
-		['titan', 2, 6, 0.20, 0.012, 2.6, 5.8, '#d9a860'],
-		['wanderer', 1, -1, 0, 0.045, 0, 0, '#75c5a0'],
+		// name, type, parent, a, radius, period(s), phase, color, interior profile
+		['sun', 0, -1, 0, 0.090, 0, 0, '#ffd75e', 1],
+		['mercury', 1, 0, 0.62, 0.020, 19.8, 0.4, '#b8a89a', 0],
+		['venus', 1, 0, 0.95, 0.034, 37.5, 2.1, '#e8c468', 0],
+		['earth', 1, 0, 1.30, 0.038, 60, 4.0, '#5b8dd9', 0],
+		['mars', 1, 0, 1.80, 0.028, 97.9, 1.1, '#c96f4a', 0],
+		['jupiter', 1, 0, 2.60, 0.085, 169.7, 5.3, '#d9a066', 2],
+		['saturn', 1, 0, 3.40, 0.072, 253.5, 3.2, '#e0cf98', 2],
+		['luna', 2, 3, 0.12, 0.012, 4.5, 0.7, '#cfcfcf', 0],
+		['phobos', 2, 4, 0.055, 0.006, 2.0, 2.4, '#a08878', 0],
+		['io', 2, 5, 0.15, 0.010, 2.0, 4.4, '#e8d060', 0],
+		['callisto', 2, 5, 0.32, 0.013, 2.75, 1.9, '#9a8a7a', 0],
+		['titan', 2, 6, 0.20, 0.012, 2.6, 5.8, '#d9a860', 0],
+		['wanderer', 1, -1, 0, 0.045, 0, 0, '#75c5a0', 0],
 	];
 	const nb = rows.length;
 	system.nb = nb;
 	system.name = new Array(nb);
 	system.type = new Int8Array(nb);
 	system.parent = new Int8Array(nb);
+	system.profile = new Int8Array(nb);
 	system.orbitA = new Float64Array(nb);
 	system.radius = new Float64Array(nb);
 	system.period = new Float64Array(nb);
@@ -50,6 +75,7 @@ function sysInit() {
 		system.period[i] = r[5];
 		system.phase[i] = r[6];
 		system.color[i] = r[7];
+		system.profile[i] = r[8];
 	}
 	system.wx[nb - 1] = 1.6;
 	system.wy[nb - 1] = -1.0;
@@ -71,4 +97,4 @@ function sysStep(dtMs) {
 	}
 }
 
-if (typeof module !== 'undefined') module.exports = { system, sysInit, sysStep };
+if (typeof module !== 'undefined') module.exports = { interiorProfiles, system, sysInit, sysStep };
