@@ -3,65 +3,34 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>2d star system wrap</title>
+<title>Logarithmic star system</title>
 <style>
 	html, body { margin: 0; height: 100%; background: #05060a; overflow: hidden; }
-	#c { display: block; touch-action: none; }
-	#hud {
-		position: fixed; top: 10px; left: 12px; z-index: 1;
-		color: #cfd6e6; font: 13px system-ui, sans-serif; user-select: none;
-	}
-	#hud { max-height: calc(100vh - 20px); overflow: auto; }
-	#hud .hint { display: block; margin-top: 6px; color: #7c869c; font-size: 12px; }
-	#hud details { margin-top: 10px; width: min(285px, calc(100vw - 24px)); background: rgba(12, 17, 29, .94); border: 1px solid #303a50; border-radius: 8px; }
-	#hud summary { cursor: pointer; padding: 10px 12px; font-weight: 600; }
-	.settings-content { padding: 0 12px 12px; display: grid; gap: 12px; }
-	.settings-content label { display: block; }
-	.settings-content small { display: block; color: #9aa7bf; line-height: 1.4; margin-top: 3px; }
-	.settings-content input[type=range] { width: 100%; margin: 6px 0 0; accent-color: #8db9ff; }
-	.settings-content select, .settings-content button { color: #e6ebf7; background: #202b40; border: 1px solid #485978; border-radius: 4px; padding: 6px; font: inherit; }
-	.settings-content select { width: 100%; margin-top: 5px; }
-	.settings-content input[type=checkbox] { accent-color: #8db9ff; }
-	.preview-row { display: flex; gap: 6px; align-items: end; }
-	.preview-row label { flex: 1; }
-	.preview-row button { cursor: pointer; white-space: nowrap; }
+	canvas { display: block; touch-action: none; }
+	#hud { position: fixed; top: 12px; left: 14px; color: #e3eafa; font: 13px/1.45 system-ui, sans-serif; user-select: none; max-width: min(310px, calc(100vw - 28px)); }
+	.panel { background: rgba(10, 15, 27, .86); border: 1px solid #303b52; border-radius: 9px; padding: 12px 14px; }
+	.title { font-weight: 650; letter-spacing: .02em; }
+	.hint { color: #a8b5cd; margin: 5px 0 10px; font-size: 12px; }
+	.controls { display: flex; gap: 6px; }
+	select, button { min-width: 0; color: #e6ebf7; background: #202b40; border: 1px solid #485978; border-radius: 5px; padding: 6px 8px; font: inherit; }
+	select { flex: 1; } button { cursor: pointer; }
+	a { color: #a6c9ff; }
+	.status { color: #a8b5cd; font-size: 12px; margin-top: 8px; }
 </style>
 </head>
 <body>
-<div id="app">
-	<canvas id="c"></canvas>
-	<div id="hud">
-		<label><input type="checkbox" id="wrapBox"> wrap surface to line</label>
-		<span class="hint">click a body to wrap around it</span>
-		<details>
-			<summary>Transition settings</summary>
-			<div class="settings-content">
-				<label for="stageSplit">Sink duration: <output id="stageValue">35%</output>
-					<input id="stageSplit" type="range" min="10" max="70" step="1" value="35">
-					<small>Remaining time is used to unfold the surface.</small>
-				</label>
-				<label><input id="skyWait" type="checkbox"> Delay sky movement
-					<small>Delay sky movement by the sink duration on every transition.</small>
-				</label>
-				<label for="soilStart">Soil crossfade starts
-					<select id="soilStart"><option value="unfold">At unfold</option><option value="sink">At sink</option></select>
-				</label>
-				<label><input id="strokeOver" type="checkbox"> Draw surface line over fill</label>
-				<div class="preview-row">
-					<label for="previewBody">Preview body<select id="previewBody"></select></label>
-					<button type="button" id="previewTransition">Replay</button>
-				</div>
-				<small>Timing and color changes apply on the next transition. Replay starts from the flat view. New selections during a transition wait for it to finish.</small>
-			</div>
-		</details>
-	</div>
-</div>
-<script src="system.js"></script>
-<script src="projection.js"></script>
-<script src="surface.js"></script>
-<script src="settings.js"></script>
-<script src="render.js"></script>
-<script src="input.js"></script>
-<script src="main.js"></script>
+<canvas id="c"></canvas>
+<div id="hud"><div class="panel">
+	<div class="title">Logarithmic star system</div>
+	<div class="hint">Drag space downward to unwrap it. Click a body to follow its surface. Fly Wanderer with WASD or arrow keys.</div>
+	<div class="controls"><select id="bodyChoice" aria-label="Choose a body"></select><button id="followBody">Follow</button><button id="resetView">Reset</button></div>
+	<div class="status" id="viewStatus">Overview</div>
+	<div class="status"><a href="legacy.html">Previous transition demo</a></div>
+</div></div>
+<script src="log-system.js"></script>
+<script src="log-projection.js"></script>
+<script src="log-render.js"></script>
+<script src="log-input.js"></script>
+<script src="log-main.js"></script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-// smoke: loads page scripts in index.html order into one vm context, drives frames,
+// smoke: loads page scripts in legacy.html order into one vm context, drives frames,
 // checks transition continuity + wrap end-state math. run: node experiments/smoke.js
 
 const fs = require('fs');
@@ -6,7 +6,7 @@ const path = require('path');
 const vm = require('vm');
 
 const root = path.join(__dirname, '..');
-const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+const html = fs.readFileSync(path.join(root, 'legacy.html'), 'utf8');
 const srcs = [];
 const re = /<script src="([^"]+)"><\/script>/g;
 let m;
