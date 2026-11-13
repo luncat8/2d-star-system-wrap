@@ -19,6 +19,7 @@ function boot() {
 	view.ctx = view.canvas.getContext('2d');
 	sysInit();
 	renderInit();
+	settingsInit();
 	inputInit();
 	window.addEventListener('resize', renderResize);
 	requestAnimationFrame(frame);

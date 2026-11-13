@@ -138,24 +138,32 @@ function renderOrbits(ctx) {
 }
 
 function renderGround(ctx) {
-	const p = projection, w = view.w;
-	const soilH = view.h * SOIL_FRAC;
-	for (let j = 0; j < p.silN; j++) {
-		const b = p.silB[j], band = p.silBand[j];
-		const base = p.silBase + b * SIL_N;
-		for (let s = 0; s < SIL_N; s++) {
-			projElemAt(base + s, p.ewx[base + s], p.ewy[base + s]);
-			sx[s] = p.ex;
-			sy[s] = p.ey;
-		}
-		renderRelift(sx, null, SIL_N);
-		const type = system.type[b];
-		const off = (type === 1 ? 1 : -1) * band * soilH;
-		for (let c = 0; c < p.copies; c++) renderSilCopy(ctx, b, type, band, off, (c - (p.copies - 1) / 2) * w);
+	const p = projection, tr = p.trans;
+	if (!tr) {
+		if (p.steady.kind === 1) renderSurface(ctx, p.steady, null, 0, 1, 0.35, 'unfold');
+		return;
 	}
+	if (tr.sa.kind === 1 && !(tr.dst.kind === 1 && tr.dst.sel === tr.sa.sel))
+		renderSurface(ctx, tr.sa, tr.dst, 2, 1 - tr.raw, tr.split, tr.soilStart);
+	if (tr.dst.kind === 1)
+		renderSurface(ctx, tr.dst, tr.sa, 0, tr.raw, tr.split, tr.soilStart);
 }
 
-function renderSilCopy(ctx, b, type, band, off, dx) {
+function renderSurface(ctx, st, other, role, t, split, soilStart) {
+	const b = st.sel, type = system.type[b], dir = type === 1 ? 1 : -1;
+	const band = surfaceSoilTime(t, split, soilStart);
+	if (other) surfacePoints(st, other, role, t, split, b, sx, sy);
+	else {
+		const center = projRelift(st.xoff);
+		for (let s = 0; s < SIL_N; s++) {
+			sx[s] = center + view.w * (s / (SIL_N - 1) - 0.5);
+			sy[s] = st.yline;
+		}
+	}
+	for (let c = -1; c <= 1; c++) renderSurfaceCopy(ctx, b, type, band, dir, c * view.w, other && t < split);
+}
+
+function renderSurfaceStroke(ctx, type, band, dx) {
 	ctx.beginPath();
 	ctx.moveTo(sx[0] + dx, sy[0]);
 	for (let s = 1; s < SIL_N; s++) ctx.lineTo(sx[s] + dx, sy[s]);
@@ -163,24 +171,34 @@ function renderSilCopy(ctx, b, type, band, off, dx) {
 	ctx.lineWidth = 2;
 	ctx.strokeStyle = LINE_COL[type];
 	ctx.stroke();
-	if (Math.abs(off) < 0.5) ctx.closePath();
-	else {
-		ctx.lineTo(sx[SIL_N - 1] + dx, sy[SIL_N - 1] + off);
-		for (let s = SIL_N - 2; s >= 0; s--) ctx.lineTo(sx[s] + dx, sy[s] + off);
-		ctx.closePath();
+}
+
+function renderSurfaceCopy(ctx, b, type, band, dir, dx, disk) {
+	if (!settings.strokeOver) renderSurfaceStroke(ctx, type, band, dx);
+	ctx.beginPath();
+	ctx.moveTo(sx[0] + dx, sy[0]);
+	for (let s = 1; s < SIL_N; s++) ctx.lineTo(sx[s] + dx, sy[s]);
+	if (!disk) {
+		const edge = dir === 1 ? view.h : 0;
+		ctx.lineTo(sx[SIL_N - 1] + dx, edge);
+		ctx.lineTo(sx[0] + dx, edge);
 	}
+	ctx.closePath();
+	ctx.globalAlpha = 1;
+	ctx.fillStyle = system.color[b];
+	ctx.fill();
 	ctx.globalAlpha = band;
 	ctx.fillStyle = SOIL_COL[type];
 	ctx.fill();
-	ctx.globalAlpha = 1 - band;
-	ctx.fillStyle = system.color[b];
-	ctx.fill();
+	if (settings.strokeOver) renderSurfaceStroke(ctx, type, band, dx);
 	ctx.globalAlpha = 1;
 }
 
 function renderBodyAlpha(i) {
-	const p = projection;
-	for (let j = 0; j < p.silN; j++) if (p.silB[j] === i) return 1 - p.silBand[j];
+	const p = projection, tr = p.trans;
+	if (!tr) return p.steady.kind === 1 && p.steady.sel === i ? 0 : 1;
+	if (tr.sa.kind === 1 && tr.sa.sel === i) return 0;
+	if (tr.dst.kind === 1 && tr.dst.sel === i) return 0;
 	return 1;
 }
 

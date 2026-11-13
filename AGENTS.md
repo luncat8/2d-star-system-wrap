@@ -58,13 +58,16 @@ getObj().data().action()
 - relevance is decided from head -12. never read a full file just to learn what it is.
 
 - keep this map updated when ownership changes:
-	index.html — owns canvas, wrap checkbox, css, script load order.
+	index.html — owns canvas, controls markup, css, script load order.
 	main.js — owns boot/wiring only: $, shared view object, frame loop. edit for load order, boot, wiring.
 	system.js — owns body table + kinematics. edit for orbits, sizes, periods, colors.
 	projection.js — owns view state, flat/wrap math, transition machine, angle trackers. edit for projection formulas, morph timing, seam rules.
+	surface.js — owns ground transition geometry and timing. edit for sink/unfold and crossfade.
+	settings.js — owns transition controls and replay. edit for adjustable presentation.
 	render.js — owns canvas drawing + resize + star field. edit for visuals, colors, soil, sampling, stars.
 	input.js — owns click + wrap checkbox. edit for interaction bindings.
 	experiments/smoke.js — vm harness: loads index.html scripts, drives frames, checks continuity + wrap math.
+	experiments/surface-smoke.js — surface geometry and controls checks.
 - new code goes to its owner, never appended "because the file is already there". no owner exists -> new file + header + map entry.
 - file > ~500 lines = defect. split by feature within the same plan.
 - moves are pure moves: contiguous ranges, snap to enclosing declarations, no behavior change.
@@ -136,10 +139,9 @@ getObj().data().action()
 
 [rewritten each phase, never accumulated. only constraints that matter right now. delete lines that stopped mattering.]
 
-plan 0.1 (wrap projection) and 0.2 (star field, hint, dpr cap) implemented; archive/0.1.0-*, archive/0.2.0-*.
-manual browser pass pending: morph feel, seam invisibility, checkbox retarget, star density.
-next, in order: plan-0.3.0-camera-pan.md (drag anywhere = pan, tap = wrap), plan-0.4.0-surface-unfold.md (the surface enters and leaves through the screen edge; drops the icon->line lerp that draws a soil slab).
-after that: body spin (surface x drift), sphere-of-influence shading.
+plan 0.1 (wrap projection), 0.2 (star field), and the configurable surface unfold are implemented.
+manual browser pass pending: morph feel, seam invisibility, settings comparison, queue, star density.
+next: plan-0.3.0-camera-pan.md, then body spin (surface x drift), sphere-of-influence shading.
 smoke after any projection/render change; ascii-dump check when draw transforms change (see findings).
 
 ## housekeeping

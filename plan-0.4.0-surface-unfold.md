@@ -61,29 +61,24 @@ Half-covered is the handover point between two straight-line animations, both in
 - departure is the same two paths run backwards: line → fold → half-covered disk → fly to the
   appearance the body has in the destination state.
 
-Both endpoints carry the state's pan, so a panned flat view sinks from where it is and arrives at
-the screen edge.
+Camera pan is a separate feature; the sink starts at the current unpanned body position.
 
-## timing
+## timing and controls
 
-3 s total, `PROJ_DUR` unchanged. Ground path stages on its own schedule:
-
-	sink   t in [0.00, 0.35]   smoothstep
-	unfold t in [0.35, 1.00]   smoothstep
-	departure: fold [0.00, 0.55], fly out [0.55, 1.00]
-
-The sky keeps its current blend across the whole 3 s, so the world recedes while the surface is
-still approaching, and the horizon opens into an already-wrapped sky.
+3 s total, `PROJ_DUR` unchanged. Sink and unfold each use smoothstep. The sink share is
+adjustable from 10% to 70%, default 35%; departure follows the same path in reverse.
+The sky can blend over the whole transition or wait for the initial sink-duration interval.
+Soil crossfades from body colour starting either at the sink or at the unfold, reaching full soil
+halfway through the unfold. The line can be drawn under or over the fill. Timing and soil choices
+are captured at transition start; stroke order changes immediately. Replay resets to the flat view
+and starts a transition to the selected body. Selection changes during a transition are queued,
+with the latest choice winning, so an interrupted surface never jumps to a different arc.
 
 ## rendering
 
-- fill: the visible run of the curve plus the two points where it leaves the screen edge; closed
-  along the edge, never along a chord between the ends. At `e = 1` this is identical to the current
-  10vh band, so the steady state does not change.
-- stroke: the same visible run only. The closing edge is never stroked.
-- soil/body crossfade: band 0 during the sink, 0 → 1 over the first half of the unfold — the body
-  face becomes soil exactly while it turns into the horizon.
-- three copies stay: the curve is one period wide, and its ends are the copies' seam.
+The sink is a closed disk, clipped by the viewport. During the unfold the curve is closed to the
+ground edge for filling; the closing edge is never stroked. Three copies cover the periodic seam.
+Body colour is opaque under the soil overlay throughout the crossfade.
 
 ## invariants (the smoke asserts these)
 
@@ -98,32 +93,19 @@ still approaching, and the horizon opens into an already-wrapped sky.
 
 ## files
 
-- `surface.js` (new, owns the sink/unfold/fold geometry and the schedule):
-  edit for the arc family, timing, edge hiding.
-- `projection.js`: a ground body's silhouette comes from `surface.js` for the transition, from the
-  existing line/disk code in the steady states. No new projection formulas. Stays under 500 lines.
-- `render.js`: ground fill closes on the screen edge, stroke only on the visible run.
-- `experiments/smoke.js`: the invariants above.
-- `main.js`, `index.html`: load `surface.js` after `projection.js`.
+- `surface.js`: sink/unfold geometry, sky and soil timing.
+- `settings.js`, `index.html`: controls and replay.
+- `projection.js`: transition timing and latest-choice queue.
+- `render.js`: surface fill and configurable stroke ordering.
+- `experiments/smoke.js`, `experiments/surface-smoke.js`: projection, geometry and control checks.
 
 ## validation
 
-- L0: `node --check` on every touched file.
-- L1: the invariant table above, swept over `e` in 100 steps, for a planet and a star ground, at
-  1200x800 and at 420x900.
-- L1: existing scenarios (flat→wrap, wrap→wrap, retarget, queue, wrap→flat) still pass with the
-  same continuity numbers, max 0.0168 W against the 0.25 limit.
-- L1: no frame has a ground-curve chord longer than `soilH` inside the viewport.
-- L2: ascii dump of five frames through flat→wrap(earth) and wrap(earth)→wrap(luna): the dome
-  must widen monotonically and the line must arrive flat at the edge.
-- manual: click Earth from flat (dome rises out of the bottom edge, opens left and right, no slab,
-  no diagonal); click a moon and the sun (mirrored at the top); wrap→wrap (one surface folds back
-  into the bottom edge while the other opens at the top); toggle the checkbox mid-morph; resize
-  mid-unfold; pan, then click a body.
+- `node --check` on touched JavaScript files; run both smoke scripts.
+- Manual: compare both sky and soil choices and stroke order using Replay; vary the split.
+- Manual: test planet, moon and star, wrap-to-wrap, toggle mid-transition and resize mid-unfold.
+- Camera pan and its interaction with the transition remain in plan 0.3.
 
 ## open decisions
 
-- exact stage split (0.35) and whether the sky should wait for the unfold to start.
-- soil colour during the sink: body colour until the unfold, or start the crossfade in the sink.
-- whether the stroke should be drawn over the fill (a crisp surface line) or under it (today's look).
 - whether a very narrow window should clamp the band so the ends stay further from the corners.

@@ -25,8 +25,8 @@ const projection = {
 	steady: null, trans: null, queue: -2, // queue: body idx, -1 flat, -2 none
 };
 
-let thA = null, thB = null, thC = null; // unwrapped bearings per element around sa / sb / dst centers
-let cxs = null, cys = null; // collapsed icon-circle centers per role (0=sa/steady, 1=sb, 2=dst) per body
+let thA = null, thC = null; // unwrapped bearings per element around source / destination centers
+let cxs = null, cys = null; // collapsed icon-circle centers per role (0=source/steady, 2=destination) per body
 let cosO = null, sinO = null, cosS = null, sinS = null, extentArr = null;
 
 function projInit(orbitSamp) {
@@ -36,7 +36,6 @@ function projInit(orbitSamp) {
 	p.silBase = nb + nb * orbitSamp;
 	p.maxe = p.silBase + nb * SIL_N;
 	thA = new Float64Array(p.silBase);
-	thB = new Float64Array(p.silBase);
 	thC = new Float64Array(p.silBase);
 	cxs = new Float64Array(3 * nb);
 	cys = new Float64Array(3 * nb);
@@ -86,29 +85,31 @@ function projMakeWrap(sel) {
 function projGoTo(i) {
 	const p = projection;
 	const cur = p.trans ? p.trans.dst : p.steady;
-	if (cur.kind === 1 && cur.sel === i) return;
+	if (cur.kind === 1 && cur.sel === i) {
+		p.queue = -2;
+		return;
+	}
 	projStartTo(projMakeWrap(i));
 }
 
 function projSetMode(w) {
 	const p = projection;
 	const cur = p.trans ? p.trans.dst : p.steady;
-	if (cur.kind === (w ? 1 : 0)) return;
+	if (cur.kind === (w ? 1 : 0)) {
+		p.queue = -2;
+		return;
+	}
 	projStartTo(w ? projMakeWrap(cur.sel) : projMakeFlat(cur.sel));
 }
 
 function projStartTo(dst) {
 	const p = projection;
-	if (p.trans && p.trans.sb) {
+	if (p.trans) {
 		p.queue = dst.kind === 1 ? dst.sel : -1;
 		return;
 	}
-	const old = p.trans;
-	const sa = old ? old.sa : p.steady;
-	const sb = old ? old.dst : null;
 	projFillWorld();
-	if (sb) thB.set(thC); // freeze: old dst tracker becomes src-b tracker
-	p.trans = { sa: sa, sb: sb, ft: p.t, dst: dst, t0: p.now };
+	p.trans = { sa: p.steady, dst: dst, t0: p.now, raw: 0, split: settings.split, skyWait: settings.skyWait, soilStart: settings.soilStart };
 	p.t = 0;
 	p.copies = 3;
 	if (dst.kind === 1) projInitTrackers(dst);
@@ -134,12 +135,14 @@ function projStep(now) {
 	if (p.trans) {
 		const t = (now - p.trans.t0) / PROJ_DUR;
 		if (t >= 1) projComplete();
-		else p.t = t * t * (3 - 2 * t);
+		else {
+			p.trans.raw = Math.max(0, t);
+			p.t = surfaceSkyTime(p.trans.raw, p.trans.split, p.trans.skyWait);
+		}
 	}
 	projUpdateState(p.steady);
 	if (p.trans) {
 		projUpdateState(p.trans.sa);
-		if (p.trans.sb) projUpdateState(p.trans.sb);
 		projUpdateState(p.trans.dst);
 	}
 	projFillWorld();
@@ -199,7 +202,6 @@ function projUnwrapLive() {
 	const p = projection, tr = p.trans;
 	if (tr) {
 		if (tr.sa.kind === 1) projUnwrapTh(thA, tr.sa);
-		if (tr.sb && tr.sb.kind === 1) projUnwrapTh(thB, tr.sb);
 		if (tr.dst.kind === 1) projUnwrapTh(thC, tr.dst);
 	} else if (p.steady.kind === 1) projUnwrapTh(thA, p.steady);
 }
@@ -284,7 +286,6 @@ function projElemX(e, wx, wy) {
 	const p = projection, tr = p.trans;
 	if (!tr) return projEvalX(p.steady, thA, 0, e, wx);
 	let x = projEvalX(tr.sa, thA, 0, e, wx);
-	if (tr.sb) x += (projEvalX(tr.sb, thB, 1, e, wx) - x) * tr.ft;
 	if (p.t > 0) x += (projEvalX(tr.dst, thC, 2, e, wx) - x) * p.t;
 	return x;
 }
@@ -293,7 +294,6 @@ function projElemY(e, wx, wy) {
 	const p = projection, tr = p.trans;
 	if (!tr) return projEvalY(p.steady, 0, e, wx, wy);
 	let y = projEvalY(tr.sa, 0, e, wx, wy);
-	if (tr.sb) y += (projEvalY(tr.sb, 1, e, wx, wy) - y) * tr.ft;
 	if (p.t > 0) y += (projEvalY(tr.dst, 2, e, wx, wy) - y) * p.t;
 	return y;
 }
@@ -309,7 +309,6 @@ function projCollapse() {
 	const p = projection, tr = p.trans;
 	projCollapseRole(0, tr ? tr.sa : p.steady, thA);
 	if (tr) {
-		if (tr.sb) projCollapseRole(1, tr.sb, thB);
 		projCollapseRole(2, tr.dst, thC);
 	}
 }
@@ -330,7 +329,6 @@ function projSilList() {
 	projSilPush(p.steady.sel);
 	if (p.trans) {
 		projSilPush(p.trans.sa.sel);
-		if (p.trans.sb) projSilPush(p.trans.sb.sel);
 		projSilPush(p.trans.dst.sel);
 	}
 }
@@ -341,7 +339,6 @@ function projSilPush(b) {
 	let band = p.steady.kind === 1 && p.steady.sel === b ? 1 : 0;
 	if (tr) {
 		let src = tr.sa.kind === 1 && tr.sa.sel === b ? 1 : 0;
-		if (tr.sb) src += ((tr.sb.kind === 1 && tr.sb.sel === b ? 1 : 0) - src) * tr.ft;
 		const dst = tr.dst.kind === 1 && tr.dst.sel === b ? 1 : 0;
 		band = src + (dst - src) * p.t;
 	}

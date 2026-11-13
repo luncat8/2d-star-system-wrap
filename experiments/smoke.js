@@ -20,10 +20,15 @@ const ctxStub = {
 const els = {
 	c: { style: {}, width: 0, height: 0, addEventListener() {}, getContext: () => ctxStub },
 	wrapBox: { checked: false, addEventListener() {} },
+	stageSplit: { value: '35', addEventListener() {} },
+	stageValue: { textContent: '' },
+	skyWait: { addEventListener() {} }, soilStart: { addEventListener() {} },
+	strokeOver: { addEventListener() {} },
+	previewBody: { value: '', appendChild() {} }, previewTransition: { addEventListener() {} },
 };
 let rafCb = null;
 const sandbox = {
-	document: { getElementById: id => els[id] || null },
+	document: { getElementById: id => els[id] || null, createElement: () => ({}) },
 	window: { innerWidth: 1200, innerHeight: 800, devicePixelRatio: 1, addEventListener() {} },
 	requestAnimationFrame: cb => { rafCb = cb; return 1; },
 	console,
@@ -278,7 +283,7 @@ api.projGoTo(1);
 frames(25);
 api.projGoTo(2);
 frames(25);
-chk(P.trans && P.trans.sb !== null, 'nested transition');
+chk(P.trans && P.queue === 2, 'transition queued');
 api.projGoTo(6);
 chk(P.queue === 6, 'queued');
 chk(runUntil(() => !P.trans && P.steady.sel === 6 && P.queue === -2, 700), 'queue drains');
