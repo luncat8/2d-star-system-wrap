@@ -67,6 +67,7 @@ getObj().data().action()
 	legacy.html — previous transition demo and script order.
 	main.js, system.js, projection.js, surface.js, settings.js, render.js, input.js — previous transition demo.
 	experiments/log-smoke.js — log projection, interior layers, interaction and follow checks.
+	experiments/log-perf.js — log view frame cost per state: ms, path points, filled pixels.
 	experiments/smoke.js, experiments/surface-smoke.js — previous demo checks.
 - new code goes to its owner, never appended "because the file is already there". no owner exists -> new file + header + map entry.
 - file > ~500 lines = defect. split by feature within the same plan.

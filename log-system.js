@@ -26,7 +26,7 @@ const interiorProfiles = [
 ];
 
 const system = {
-	nb: 0,
+	nb: 0, free: -1,
 	name: null, type: null, parent: null, profile: null,
 	orbitA: null, radius: null, period: null, phase: null, color: null,
 	wx: null, wy: null, rmax: null,
@@ -53,6 +53,8 @@ function sysInit() {
 	];
 	const nb = rows.length;
 	system.nb = nb;
+	// the last row is the freely flown body: input drives it by index
+	system.free = nb - 1;
 	system.name = new Array(nb);
 	system.type = new Int8Array(nb);
 	system.parent = new Int8Array(nb);
@@ -77,8 +79,8 @@ function sysInit() {
 		system.color[i] = r[7];
 		system.profile[i] = r[8];
 	}
-	system.wx[nb - 1] = 1.6;
-	system.wy[nb - 1] = -1.0;
+	system.wx[system.free] = 1.6;
+	system.wy[system.free] = -1.0;
 	for (let i = 0; i < nb; i++) {
 		const p = system.parent[i];
 		system.rmax[i] = p < 0 ? 0 : system.rmax[p] + system.orbitA[i];

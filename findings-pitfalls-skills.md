@@ -147,3 +147,49 @@
   the visible scale variation drops from 10 % to 2.4 % per minute.
 - seed the damped span from the follow transition's end scale; otherwise the handover from the
   timed interpolation to the steady camera jumps by one EMA step.
+
+## log view: the orbit of the body under the pole is not drawable
+
+- a followed body's centre is a point of its own orbit, and the pole is the log origin: the image
+  of a circle through the pole whips a whole period along the surface line and leaves the top arc
+  in two near-vertical strokes. measured on a follow of earth: 125 px between the drawn polyline
+  and the curve, 330 px jumps between adjacent samples, streaks over the whole sky.
+- no sampling can fix a singularity. skip the orbit of the body whose disk contains the pole — the
+  same index that already selects the interior cutaway — and keep every other orbit: they only
+  touch the pole at their closest approach, where the image has a cusp.
+- a smoke that renders and compares positions finds this cheaply: patch the global `renderCurve`
+  inside the sandbox and record its arguments, then assert the parent/radius pair is absent.
+
+## frame cost: measure in the page's realm, not inside a vm context
+
+- a `vm.createContext` sandbox routes every global lookup through a named-property interceptor:
+  `Math.cos` went from 25 to 215 ns, and the same 14 ms frame measured 0.8 ms once the sources
+  were concatenated into one `new Function` body in the main realm. attribution inside a vm is
+  usable, absolute numbers are not.
+- concat the index.html scripts, append `;return { ... }` and call it with `document`, `window`,
+  `requestAnimationFrame` as parameters. top-level `const`/`function` become function locals, and
+  `typeof module` stays undefined so the node guards are skipped.
+- two of the numbers that matter cannot be seen in node at all: path points per frame (issued
+  `lineTo` calls) and filled area (shoelace over the fill path, before clipping). log both.
+
+## log view: sample counts belong to the projection, not to a constant
+
+- a constant 256 samples is 7x too many for the overview (3-4 px bodies) and 3x too many for a
+  follow view (most bodies under 20 px), and it is what the frame spent most of its time on.
+- derive the count from the projected extent, `span = max(2·s·asin(r/D), s·log((D+r)/(D-r)))`,
+  and a chord budget, `n = π/acos(1 - e/(span/2))`. snap `n` to a power-of-two divisor of the
+  table size so the table index of a sample stays exact (`CURVE_N / stride`).
+- the box-based estimate misses cusps (a cusp is sharper than a circle of the same diameter):
+  0.25 px budget gave 1.3 px worst case on a 20 % alpha orbit line. acceptable; state it.
+- tabled `cos`/`sin` per sample index turns a sample into atan2 + log + sqrt. `Math.hypot` is
+  3-4x `Math.sqrt(a*a + b*b)` and the coordinates are world units, so the square is safe.
+
+## nested interior fills repaint the frame once per band
+
+- filling each band from its own boundary to the bottom edge paints 0.38 H of screen once per
+  band: 1.2 screens of raster per frame for a 0.38 H image.
+- fill the strip between the band boundary and the next one, as the atmosphere band already did.
+  same pixels, same colours, a third of the raster. a band whose inner sphere does not contain
+  the pole has no lower half plane — that band runs to the bottom edge like the deepest one.
+- the same merge works for wrap copies: every visible lap as a subpath of one path means one
+  fill/stroke per curve instead of one per lap, and touching laps are not blended twice at the seam.

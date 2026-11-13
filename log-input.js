@@ -3,6 +3,8 @@
 
 const gesture = { active: false, dragging: false, id: 0, x: 0, y: 0, px: 0, py: 0, scale: 0, rx: 0, ry: 0, qx: 0, qy: 0, ref: 1, line: 0 };
 const flightKeys = new Set();
+const flightNames = new Set(['w', 'a', 's', 'd', 'arrowup', 'arrowleft', 'arrowdown', 'arrowright']);
+let statusText = '';
 
 function inputInit() {
 	const canvas = view.canvas;
@@ -18,7 +20,7 @@ function inputInit() {
 		const option = document.createElement('option');
 		option.value = i; option.textContent = system.name[i]; choice.appendChild(option);
 	}
-	choice.value = String(system.nb - 1);
+	choice.value = String(system.free);
 	$('followBody').addEventListener('click', () => inputFollow(Number(choice.value)));
 	$('resetView').addEventListener('click', () => { cameraReset(); inputStatus(); });
 }
@@ -29,8 +31,13 @@ function inputFollow(i) {
 	inputStatus();
 }
 
+// a click and every pointermove during a drag report the same state: write the DOM only
+// when the text changes, not once per pointer event
 function inputStatus() {
-	$('viewStatus').textContent = camera.target < 0 ? 'Free view' : 'Following ' + system.name[camera.target];
+	const text = camera.target < 0 ? 'Free view' : 'Following ' + system.name[camera.target];
+	if (text === statusText) return;
+	statusText = text;
+	$('viewStatus').textContent = text;
 }
 
 function inputDown(ev) {
@@ -50,12 +57,13 @@ function inputDown(ev) {
 function inputMove(ev) {
 	if (!gesture.active || ev.pointerId !== gesture.id) return;
 	const dx = ev.clientX - gesture.x, dy = ev.clientY - gesture.y;
-	if (!gesture.dragging && Math.hypot(dx, dy) < 4) return;
+	if (!gesture.dragging && dx * dx + dy * dy < 16) return;
 	gesture.dragging = true;
 	camera.target = -1; camera.transition = null;
 	// downward progress to the anchor's ground line drives pole, bearing and zoom to its ground state
 	const k = Math.max(0, Math.min(1, dy / Math.max(80, view.h * gesture.line - gesture.y)));
-	const d0 = Math.max(Math.hypot(gesture.rx - gesture.px, gesture.ry - gesture.py), 1e-9);
+	const ex = gesture.rx - gesture.px, ey = gesture.ry - gesture.py;
+	const d0 = Math.max(Math.sqrt(ex * ex + ey * ey), 1e-9);
 	const d = d0 * Math.pow(gesture.ref / d0, k);
 	const b0 = Math.atan2(gesture.px - gesture.rx, gesture.py - gesture.ry);
 	const db = ((Math.atan2(gesture.qx - gesture.rx, gesture.qy - gesture.ry) - b0 + Math.PI) % LOG_TAU + LOG_TAU) % LOG_TAU - Math.PI;
@@ -74,12 +82,13 @@ function inputPick(x, y) {
 	let best = -1, bestDistance = Infinity;
 	const period = LOG_TAU * camera.scale;
 	for (let i = 0; i < system.nb; i++) {
-		const d = Math.hypot(system.wx[i] - camera.px, system.wy[i] - camera.py);
+		const ex = system.wx[i] - camera.px, ey = system.wy[i] - camera.py;
+		const d = Math.sqrt(ex * ex + ey * ey);
 		if (d <= system.radius[i]) continue;
 		cameraProject(system.wx[i], system.wy[i]);
 		let dx = camera.x - x;
 		dx -= period * Math.round(dx / period);
-		const distance = Math.hypot(dx, camera.y - y);
+		const distance = Math.sqrt(dx * dx + (camera.y - y) * (camera.y - y));
 		const r = camera.scale * Math.asin(Math.min(1, system.radius[i] / d));
 		if (distance <= Math.max(10, r + 3) && distance < bestDistance) { best = i; bestDistance = distance; }
 	}
@@ -102,7 +111,7 @@ function inputCancel(ev) {
 function inputKeyDown(ev) {
 	if (/^(INPUT|SELECT)$/.test(ev.target.tagName)) return;
 	const key = ev.key.toLowerCase();
-	if (!['w', 'a', 's', 'd', 'arrowup', 'arrowleft', 'arrowdown', 'arrowright'].includes(key)) return;
+	if (!flightNames.has(key)) return;
 	flightKeys.add(key); ev.preventDefault();
 }
 
@@ -111,9 +120,9 @@ function inputKeyUp(ev) { flightKeys.delete(ev.key.toLowerCase()); }
 function inputFlight(dt) {
 	let x = Number(flightKeys.has('d') || flightKeys.has('arrowright')) - Number(flightKeys.has('a') || flightKeys.has('arrowleft'));
 	let y = Number(flightKeys.has('w') || flightKeys.has('arrowup')) - Number(flightKeys.has('s') || flightKeys.has('arrowdown'));
-	const length = Math.hypot(x, y);
+	const length = Math.sqrt(x * x + y * y);
 	if (!length) return;
-	const i = system.nb - 1, speed = 0.45 * dt / 1000 / length;
+	const i = system.free, speed = 0.45 * dt / 1000 / length;
 	system.wx[i] += x * speed; system.wy[i] += y * speed;
 }
 

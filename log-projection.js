@@ -34,7 +34,7 @@ function cameraReset() {
 function cameraProject(x, y) {
 	const dx = x - camera.px, dy = y - camera.py;
 	camera.x = camera.ox + camera.scale * Math.atan2(dx, dy);
-	camera.y = camera.oy - camera.scale * Math.log(Math.max(Math.hypot(dx, dy), 1e-12));
+	camera.y = camera.oy - camera.scale * Math.log(Math.max(Math.sqrt(dx * dx + dy * dy), 1e-12));
 }
 
 function cameraUnproject(x, y) {
@@ -48,7 +48,8 @@ function cameraUnproject(x, y) {
 function cameraMaxExtent(px, py) {
 	let max = 0;
 	for (let i = 0; i < system.nb; i++) {
-		const d = Math.hypot(px - system.wx[i], py - system.wy[i]) + system.radius[i];
+		const ex = px - system.wx[i], ey = py - system.wy[i];
+		const d = Math.sqrt(ex * ex + ey * ey) + system.radius[i];
 		if (d > max) max = d;
 	}
 	return max;
@@ -85,7 +86,8 @@ function cameraFitDamped(px, py, ref, line, now) {
 // (the anchor itself in free space, the top surface point on a body), ref = |r - q|
 function cameraAnchorGround(ax, ay) {
 	for (let i = 0; i < system.nb; i++) {
-		const d = Math.hypot(ax - system.wx[i], ay - system.wy[i]);
+		const ex = ax - system.wx[i], ey = ay - system.wy[i];
+		const d = Math.sqrt(ex * ex + ey * ey);
 		if (d < system.radius[i]) {
 			anchor.qx = system.wx[i]; anchor.qy = system.wy[i];
 			anchor.rx = system.wx[i]; anchor.ry = system.wy[i] + system.radius[i];
@@ -96,12 +98,13 @@ function cameraAnchorGround(ax, ay) {
 	// in free space the pole lands on the nearest surface point: the ground below
 	let ref = Infinity, bi = -1;
 	for (let i = 0; i < system.nb; i++) {
-		const d = Math.hypot(ax - system.wx[i], ay - system.wy[i]) - system.radius[i];
+		const ex = ax - system.wx[i], ey = ay - system.wy[i];
+		const d = Math.sqrt(ex * ex + ey * ey) - system.radius[i];
 		if (d < ref) { ref = d; bi = i; }
 	}
 	ref = Math.max(ref, 1e-4);
 	const dx = ax - system.wx[bi], dy = ay - system.wy[bi];
-	const dl = Math.hypot(dx, dy);
+	const dl = Math.sqrt(dx * dx + dy * dy);
 	anchor.qx = system.wx[bi] + system.radius[bi] * dx / dl;
 	anchor.qy = system.wy[bi] + system.radius[bi] * dy / dl;
 	anchor.rx = ax; anchor.ry = ay;
@@ -134,7 +137,7 @@ function cameraStep(now) {
 	camera.scale = Math.exp(Math.log(tr.scale) + (Math.log(tr.endScale) - Math.log(tr.scale)) * k);
 	const ax = system.wx[i] - camera.px, ay = system.wy[i] + system.radius[i] - camera.py;
 	camera.ox = tr.x + (view.w / 2 - tr.x) * k - camera.scale * Math.atan2(ax, ay);
-	camera.oy = tr.y + (view.h * GROUND_BODY - tr.y) * k + camera.scale * Math.log(Math.max(Math.hypot(ax, ay), 1e-12));
+	camera.oy = tr.y + (view.h * GROUND_BODY - tr.y) * k + camera.scale * Math.log(Math.max(Math.sqrt(ax * ax + ay * ay), 1e-12));
 	if (t < 1) return;
 	camera.transition = null;
 	fit.range = (GROUND_BODY - TOP) * view.h / tr.endScale;

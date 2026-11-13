@@ -19,7 +19,7 @@ const sandbox = { console, document: { getElementById: id => els[id], createElem
 	requestAnimationFrame: cb => { raf = cb; } };
 vm.createContext(sandbox);
 vm.runInContext('"use strict";\n' + scripts.map(f => fs.readFileSync(path.join(root, f), 'utf8')).join('\n;\n') +
-	'\n;globalThis.api = { camera, anchor, system, view, interiorProfiles, inputDown, inputMove, inputUp, inputPick, inputFlight, inputKeyDown, inputKeyUp, renderEnclosingBody, renderLayerLabels, renderCurve, curveX, curveY, cameraProject, cameraUnproject, cameraFollow, cameraStep, cameraReset, cameraFitScale, cameraFitDamped, cameraFitRange, fit, FIT_MS, FIT_GROW_MS, FIT_HOLD_MS, FIT_CLOSE_MS, FIT_CLOSE_RATIO, LOG_TAU, GROUND, GROUND_BODY, TOP };', sandbox);
+	'\n;globalThis.api = { camera, anchor, system, view, interiorProfiles, inputDown, inputMove, inputUp, inputPick, inputFlight, inputKeyDown, inputKeyUp, renderEnclosingBody, renderLayerLabels, renderCurve, curveX, curveY, renderFrame, renderGroundIndex, cameraProject, cameraUnproject, cameraFollow, cameraStep, cameraReset, cameraFitScale, cameraFitDamped, cameraFitRange, fit, FIT_MS, FIT_GROW_MS, FIT_HOLD_MS, FIT_CLOSE_MS, FIT_CLOSE_RATIO, LOG_TAU, GROUND, GROUND_BODY, TOP };', sandbox);
 const a = sandbox.api;
 let fails = 0;
 function check(ok, name) { if (!ok) { console.error('fail=' + name); fails++; } }
@@ -75,7 +75,9 @@ calls.length = 0; a.renderEnclosingBody(ctx, i);
 const bands = a.interiorProfiles[a.system.profile[i]].bands;
 const air = a.interiorProfiles[a.system.profile[i]].air;
 check(calls.length === bands.length + 1, 'one fill per band plus air');
-check(calls.slice(1).every(c => near(c.at(-1)[1], a.view.h + 1)), 'bands reach the bottom');
+// a band is the strip between its boundary and the next one, not a repaint of everything below
+check(calls.slice(1, -1).every(c => c.length === 514), 'band strips span both boundaries');
+check(near(calls.at(-1).at(-1)[1], a.view.h + 1), 'deepest band reaches the bottom');
 const airY = a.camera.oy - a.camera.scale * Math.log(a.system.radius[i] * air);
 check(calls[0].slice(0, 257).every(p => near(p[1], airY)), 'air above surface');
 check(calls[0].slice(257).every(p => near(p[1], a.camera.oy - a.camera.scale * Math.log(a.system.radius[i]))), 'air band meets surface');
@@ -135,6 +137,18 @@ for (let body = 0; body < a.system.nb; body++) {
 	texts.length = 0; a.renderLayerLabels(ctx, body);
 	check(texts.join('|') === profileLabels[a.system.profile[body]], 'profile labels ' + body);
 }
+// the orbit under the pole is singular: while following, the body's own orbit is not drawn
+let drawn = [];
+sandbox.__drawn = drawn;
+sandbox.__nativeCurve = a.renderCurve;
+vm.runInContext('renderCurve = function (cx, cy, r) { __drawn.push([cx, cy, r]); __nativeCurve(cx, cy, r); };', sandbox);
+a.cameraReset(); a.cameraFollow(3, 0); a.cameraStep(1800);
+check(a.renderGroundIndex() === 3, 'ground is the followed body');
+drawn = sandbox.__drawn;
+drawn.length = 0; a.renderFrame();
+check(drawn.some(c => c[2] === a.system.orbitA[1]), 'other orbits drawn');
+check(!drawn.some(c => c[2] === a.system.orbitA[3] && c[0] === a.system.wx[0] && c[1] === a.system.wy[0]), 'own orbit skipped');
+vm.runInContext('renderCurve = __nativeCurve;', sandbox);
 a.cameraReset(); a.inputDown(pointer(600, 200));
 a.cameraUnproject(600, 200); const wx = a.camera.x, wy = a.camera.y;
 for (let y = 210; y <= 700; y += 10) {
@@ -158,6 +172,10 @@ check(near(a.camera.x, bx + 40) && near(a.camera.y, a.view.h * a.GROUND_BODY + 2
 check(near(a.camera.px, a.system.wx[3]) && near(a.camera.py, a.system.wy[3]), 'body drag pole centre');
 fitted(3, 'body drag fits');
 a.inputUp(pointer(bx + 40, a.view.h * a.GROUND_BODY + 200));
+// pole off the body centre: a band whose inner sphere no longer contains it runs to the bottom
+a.camera.px = a.system.wx[3] + r3 * 0.4; a.camera.py = a.system.wy[3];
+calls.length = 0; a.renderEnclosingBody(ctx, 3);
+check(calls.flat().every(p => p.every(Number.isFinite)), 'off-centre bands finite');
 a.cameraProject(wx + 1, wy + 1); const px = a.camera.x, py = a.camera.y;
 a.cameraUnproject(px, py); check(near(a.camera.x, wx + 1) && near(a.camera.y, wy + 1), 'inverse wrap');
 raf(2100);
